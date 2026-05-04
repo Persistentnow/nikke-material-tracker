@@ -1,0 +1,242 @@
+# NIKKE游戏材料记录工具
+
+一个专为NIKKE游戏玩家设计的材料记录和统计工具，用于跟踪定制模组及定制模组零件的获取情况。
+
+## 🚀 项目介绍
+
+在NIKKE游戏中，定制模组和定制模组零件是重要的资源。本工具帮助玩家：
+- 记录每日材料获取情况
+- 统计实际产出与期望产出的差异
+- 智能计算双倍产出收益
+- 提供直观的数据可视化
+
+## ✨ 功能特性
+
+### 📊 数据记录
+- ✅ 支持记录每日三次获取的定制模组数量
+- ✅ 支持记录定制模组零件数量
+- ✅ 支持选择不同阶段（5/6/7阶段）
+- ✅ 支持双倍产出计算（仅对零件生效）
+
+### 📈 智能统计
+- ✅ 实时计算当前产出和与期望值的差值
+- ✅ 支持按天/按月统计视图切换
+- ✅ 自动计算零件到模组的换算（100零件 = 1模组）
+- ✅ 显示实际产出与期望产出的对比
+
+### 🎯 期望设置
+- ✅ 可自定义每日/每月期望产出值
+- ✅ 智能月度计算功能，根据双倍天数自动计算月期望
+- ✅ 支持不同阶段的预设期望值
+
+### 💾 数据持久化
+- ✅ 使用localStorage本地存储，数据不会丢失
+- ✅ 支持历史记录查看和删除
+- ✅ 支持按日期或差值排序
+
+## 🛠️ 技术栈
+
+- **前端框架**: 纯HTML5 + CSS3 + JavaScript
+- **样式框架**: Tailwind CSS v3
+- **图标库**: Font Awesome 4.7.0
+- **图表库**: Chart.js（用于数据可视化）
+- **部署**: GitHub Pages + GitHub Actions
+
+## 📦 项目结构
+
+```
+nikke-material-tracker/
+├── index.html              # 主页面
+├── script.js               # JavaScript逻辑
+├── style.css               # 样式文件
+├── README.md              # 项目说明
+├── .gitignore             # Git忽略文件
+└── .github/               # GitHub配置
+    └── workflows/         # GitHub Actions工作流
+        └── deploy.yml     # 自动部署配置
+```
+
+## 🚀 快速开始
+
+### 在线访问
+
+访问 [NIKKE材料记录工具](https://yourusername.github.io/nikke-material-tracker)
+
+### 本地运行
+
+1. 克隆项目
+```bash
+git clone https://github.com/yourusername/nikke-material-tracker.git
+cd nikke-material-tracker
+```
+
+2. 直接打开 `index.html` 文件即可使用
+
+## 📖 使用指南
+
+### 基础操作
+
+#### 1. 记录每日数据
+1. 选择日期（默认为当天）
+2. 输入三次获取的定制模组数量
+3. 选择阶段并输入零件数量
+4. 如需双倍产出，勾选"启用双倍产出"
+5. 点击"提交记录"保存
+
+#### 2. 查看统计数据
+1. 在数据统计区域查看总产出、期望产出和差值
+2. 切换"按天统计"/"按月统计"查看不同视图
+3. 实时计算区域会显示当前输入的预估产出
+
+#### 3. 设置期望目标
+1. 在期望产出设置中输入目标值
+2. 或使用智能计算功能自动生成月期望
+3. 点击"保存设置"应用
+
+### 高级功能
+
+#### 阶段选择与期望值
+
+| 阶段 | 零件数量 | 普通期望(每日) | 双倍期望(每日) |
+|------|----------|----------------|----------------|
+| 5阶段 | 81个 | 1.66模组 | 3.32模组 |
+| 6阶段 | 105个 | 2.15模组 | 4.31模组 |
+| 7阶段 | 111个 | 2.28模组 | 4.56模组 |
+
+#### 智能月度计算
+1. 输入本月双倍天数和普通天数
+2. 选择默认阶段
+3. 点击"智能计算月期望"自动生成合理的月目标
+
+## 🔧 部署说明
+
+### GitHub Pages 自动部署
+
+本项目已配置GitHub Actions自动部署，推送到main分支后会自动部署到GitHub Pages。
+
+#### 部署步骤
+
+1. **创建GitHub仓库**
+   - 在GitHub上创建一个新的仓库
+   - 仓库名称推荐：`nikke-material-tracker`
+
+2. **初始化本地仓库**
+```bash
+# 进入项目目录
+cd /path/to/nikke-material-tracker
+
+# 初始化Git
+git init
+
+# 配置用户信息
+git config --global user.name "Your GitHub Username"
+git config --global user.email "your.email@example.com"
+
+# 添加所有文件
+git add .
+
+# 提交初始版本
+git commit -m "🎉 初始化项目 - NIKKE材料记录工具"
+```
+
+3. **关联GitHub仓库并推送**
+```bash
+# 关联远程仓库（替换为您的用户名）
+git remote add origin https://github.com/yourusername/nikke-material-tracker.git
+
+# 重命名分支为main
+git branch -M main
+
+# 推送到GitHub
+git push -u origin main
+```
+
+4. **启用GitHub Pages**
+   - 推送完成后，在GitHub仓库的"Settings"页面
+   - 找到"Pages"选项
+   - 选择"Deploy from a branch"，然后选择"main"分支
+   - 点击"Save"保存设置
+
+5. **等待部署完成**
+   - GitHub Actions会自动运行部署工作流
+   - 通常需要1-2分钟完成部署
+   - 部署完成后，您可以在GitHub Pages设置页面看到部署的URL
+
+### 自定义域名（可选）
+
+如果您想使用自定义域名：
+
+1. 在GitHub Pages设置中添加您的自定义域名
+2. 在您的DNS提供商处添加CNAME记录，指向 `yourusername.github.io`
+3. 创建一个`CNAME`文件，内容为您的自定义域名
+
+## 🌐 浏览器支持
+
+- ✅ Chrome 60+
+- ✅ Firefox 55+
+- ✅ Safari 12+
+- ✅ Edge 79+
+
+## 📱 响应式设计
+
+本工具支持在各种设备上使用：
+- 🖥️ 桌面端：完整功能体验
+- 📱 移动端：优化的触摸界面
+- 📟 平板端：自适应布局
+
+## 🔒 数据隐私
+
+- 所有数据仅存储在您的本地浏览器中
+- 不会上传任何个人数据到服务器
+- 清除浏览器缓存会导致数据丢失，请谨慎操作
+
+## 🤝 贡献指南
+
+欢迎提交Issue和Pull Request来改进这个工具！
+
+### 开发流程
+
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开Pull Request
+
+### 开发规范
+
+- 使用ES6+语法
+- 遵循Airbnb JavaScript编码规范
+- 为新功能添加测试
+- 更新文档
+
+## 🐛 问题反馈
+
+如果您在使用过程中遇到问题，请通过以下方式反馈：
+
+1. **GitHub Issues**：提交详细的问题描述和复现步骤
+2. **Discussions**：分享使用经验和建议
+
+## 📝 更新日志
+
+### v1.0.0 (2024-01-XX)
+- ✨ 初始版本发布
+- 📊 基础数据记录和统计功能
+- 🎯 期望设置和智能计算
+- 💾 本地数据存储
+- 📱 响应式设计支持
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+
+## 🙏 致谢
+
+- 感谢NIKKE游戏官方提供的精彩游戏体验
+- 感谢所有使用和贡献这个工具的玩家
+- 感谢开源社区提供的优秀工具和库
+
+---
+
+**享受游戏，理性规划！** 🎮✨
+
+*如果这个工具对您有帮助，请给个 ⭐ Star 支持一下！*
