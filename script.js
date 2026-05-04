@@ -92,10 +92,29 @@ function bindEvents(){
         saveBtn.addEventListener('click', () => {
             const type = document.getElementById('expectation-type').value;
             const val = +document.getElementById('expectation-value').value || 0;
+            
+            console.log('开始保存期望设置 - 类型:', type, '值:', val);
+            
             expectations[type] = val;
             save();
             updateStats();
-            console.log('期望保存成功:', type, val);
+            
+            console.log('期望设置保存成功:', expectations);
+            
+            // 显示保存成功提示
+            const originalText = saveBtn.textContent;
+            const originalBg = saveBtn.style.background;
+            const originalColor = saveBtn.style.color;
+            
+            saveBtn.textContent = '保存成功!';
+            saveBtn.style.background = 'linear-gradient(45deg, #4caf50, #45a049)';
+            saveBtn.style.color = '#fff';
+            
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.background = originalBg;
+                saveBtn.style.color = originalColor;
+            }, 2000);
         });
     }
 
@@ -233,6 +252,15 @@ function setupRealTimeCalculation() {
 }
 
 function updateRealTimeCalculation() {
+    // 重新获取实时预览元素，确保它们存在
+    const realtimeProductionEl = document.getElementById('realtime-production');
+    const realtimeDifferenceEl = document.getElementById('realtime-difference');
+    
+    if (!realtimeProductionEl || !realtimeDifferenceEl) {
+        console.error('实时预览元素未找到');
+        return;
+    }
+    
     const m1 = +document.getElementById('modules-1').value || 0;
     const m2 = +document.getElementById('modules-2').value || 0;
     const m3 = +document.getElementById('modules-3').value || 0;
@@ -244,7 +272,7 @@ function updateRealTimeCalculation() {
     
     const totalModules = m1 + m2 + m3;
     const partsToMod = (parts / 100).toFixed(2);
-    const totalProduction = totalModules.toFixed(2);
+    const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
     
     // 智能计算期望差值
     let expectedForCurrentDay = expectations.daily; // 默认使用每日设置的期望值
@@ -264,6 +292,8 @@ function updateRealTimeCalculation() {
     realtimeProductionEl.textContent = totalProduction;
     realtimeDifferenceEl.textContent = difference;
     realtimeDifferenceEl.className = `stats-value ${parseFloat(difference) >= 0 ? 'difference-positive' : 'difference-negative'}`;
+    
+    console.log(`实时预览 - 模组=${totalModules}, 零件=${parts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${expectedForCurrentDay}, 差值=${difference}`);
     
     // 添加视觉反馈
     const realtimeItems = document.querySelectorAll('.stats-item.real-time-calc');
@@ -459,7 +489,7 @@ materialForm.addEventListener('submit', (e) => {
 
     const totalModules = m1 + m2 + m3;
     const partsToMod = (parts / 100).toFixed(2);
-    const totalProduction = totalModules.toFixed(2);
+    const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
     
     // 根据阶段计算期望产出
     let stageExpectation = expectations.daily; // 默认使用每日设置的期望值
@@ -473,7 +503,7 @@ materialForm.addEventListener('submit', (e) => {
         stageExpectation = isDouble ? 4.56 : 2.28;
     }
     
-    const diff = (totalModules - stageExpectation).toFixed(2);
+    const diff = (parseFloat(totalProduction) - stageExpectation).toFixed(2);
 
     // 同日防重复
     if (materialRecords.some(i => i.date === date)) {
@@ -537,7 +567,7 @@ function renderTable() {
             <td>${item.stageExpectation || '-'}</td>
             <td>${item.totalModules}</td>
             <td>${item.partsToMod}</td>
-            <td>${item.totalProduction}</td>
+            <td class="production-value">${item.totalProduction}</td>
             <td class="${item.diff >= 0 ? 'difference-positive' : 'difference-negative'}">${item.diff}</td>
             <td><button class="delete-btn" onclick="del(${item.id})">删除</button></td>
         `;
@@ -572,7 +602,7 @@ function updateMonthlyStatsDisplay(monthlyData) {
     
     let html = '';
     sortedMonths.forEach(month => {
-        const monthExpected = (expectations.monthly / month.daysInMonth * month.days).toFixed(2);
+        const monthExpected = expectations.monthly > 0 ? (expectations.monthly / month.daysInMonth * month.days).toFixed(2) : (expectations.daily * month.days).toFixed(2);
         const monthDiff = (month.totalModules - monthExpected).toFixed(2);
         const diffClass = parseFloat(monthDiff) >= 0 ? 'difference-positive' : 'difference-negative';
         
@@ -613,17 +643,35 @@ function updateStats() {
     if (currentStatsView === 'daily') {
         // 按天统计逻辑
         let totalMod = 0, totalProd = 0;
+        let totalParts = 0, totalPartsToMod = 0;
+        
         materialRecords.forEach(i => {
             totalMod += i.totalModules;
-            totalProd += parseFloat(i.totalProduction);
+            totalParts += i.parts;
+            
+            // 重新计算总产出量以确保准确性
+            const partsToMod = i.parts / 100;
+            const recalculatedProduction = i.totalModules + partsToMod;
+            totalProd += recalculatedProduction;
+            totalPartsToMod += partsToMod;
+            
+            console.log(`记录详情 - 日期:${i.date}, 模组:${i.totalModules}, 零件:${i.parts}, 零件换算:${partsToMod.toFixed(2)}, 原总产出:${i.totalProduction}, 重算总产出:${recalculatedProduction.toFixed(2)}`);
         });
+        
+        console.log(`按天统计 - 总模组:${totalMod}, 总零件:${totalParts}, 总零件换算:${totalPartsToMod.toFixed(2)}, 总产出:${totalProd}`);
         const expectTotal = expectations.daily * materialRecords.length;
         const diffTotal = totalMod - expectTotal;
+        const diffTotalWithParts = totalProd - expectTotal;
 
-        actualTotalEl.textContent = totalMod.toFixed(2);
+        const avgDailyMod = materialRecords.length > 0 ? (totalMod / materialRecords.length).toFixed(2) : 0;
+        const avgDailyProd = materialRecords.length > 0 ? (totalProd / materialRecords.length).toFixed(2) : 0;
+        
+        actualTotalEl.textContent = `${totalMod.toFixed(2)} (日均: ${avgDailyMod})`;
         expectedTotalEl.textContent = expectTotal.toFixed(2);
         differenceTotalEl.textContent = diffTotal.toFixed(2);
-        productionTotalEl.textContent = totalProd.toFixed(2);
+        productionTotalEl.textContent = `${totalProd.toFixed(2)} (日均: ${avgDailyProd})`;
+        
+        console.log(`按天统计汇总 - 总模组=${totalMod.toFixed(2)}, 总产出(含零件)=${totalProd.toFixed(2)}, 总期望=${expectTotal.toFixed(2)}, 记录天数=${materialRecords.length}, 日均模组=${avgDailyMod}, 日均产出=${avgDailyProd}`);
     } else {
         // 按月统计逻辑 - 更智能的实现
         const monthlyData = {};
@@ -650,16 +698,24 @@ function updateStats() {
                     avgDailyProduction: 0
                 };
             }
+            
+            // 重新计算总产出量以确保准确性
+            const partsToMod = record.parts / 100;
+            const recalculatedProduction = record.totalModules + partsToMod;
+            
             monthlyData[monthKey].totalModules += record.totalModules;
-            monthlyData[monthKey].totalProduction += parseFloat(record.totalProduction);
+            monthlyData[monthKey].totalProduction += recalculatedProduction;
             monthlyData[monthKey].days++;
             monthlyData[monthKey].records.push(record);
+            
+            console.log(`月度统计 - 记录: 模组=${record.totalModules}, 零件=${record.parts}, 零件换算=${partsToMod.toFixed(2)}, 总产出=${recalculatedProduction.toFixed(2)}`);
         });
         
         // 计算每月统计数据
         Object.values(monthlyData).forEach(month => {
             month.avgDailyModules = month.days > 0 ? (month.totalModules / month.days).toFixed(2) : 0;
             month.avgDailyProduction = month.days > 0 ? (month.totalProduction / month.days).toFixed(2) : 0;
+            console.log(`月度统计 - ${month.monthName}: 总模组=${month.totalModules}, 总产出=${month.totalProduction}, 日均产出=${month.avgDailyProduction}`);
         });
         
         // 计算总数据
@@ -669,20 +725,33 @@ function updateStats() {
             totalProd += month.totalProduction;
             totalDays += month.days;
             
-            // 根据实际天数计算月期望，考虑每月实际天数
-            const dailyExpectation = expectations.monthly / month.daysInMonth;
-            const monthExpected = dailyExpectation * month.days;
-            totalExpected += monthExpected;
+            // 根据月度期望值和实际记录天数计算期望产出
+            // 计算方式：(月度期望值 / 当月总天数) * 实际记录天数
+            if (expectations.monthly > 0) {
+                const dailyExpectation = expectations.monthly / month.daysInMonth;
+                const monthExpected = dailyExpectation * month.days;
+                totalExpected += monthExpected;
+                console.log(`月度统计 - ${month.monthName}: 月度期望=${expectations.monthly}, 当月天数=${month.daysInMonth}, 记录天数=${month.days}, 期望产出=${monthExpected.toFixed(2)}`);
+            } else {
+                // 如果没有设置月度期望值，使用每日期望值计算
+                const monthExpected = expectations.daily * month.days;
+                totalExpected += monthExpected;
+                console.log(`月度统计 - ${month.monthName}: 使用日期望=${expectations.daily}, 记录天数=${month.days}, 期望产出=${monthExpected.toFixed(2)}`);
+            }
         });
         
         const diffTotal = totalMod - totalExpected;
+        const diffTotalWithParts = totalProd - totalExpected;
         const avgDailyMod = totalDays > 0 ? (totalMod / totalDays).toFixed(2) : 0;
+        const avgDailyProd = totalDays > 0 ? (totalProd / totalDays).toFixed(2) : 0;
         
         // 更新显示
         actualTotalEl.textContent = `${totalMod.toFixed(2)} (日均: ${avgDailyMod})`;
         expectedTotalEl.textContent = totalExpected.toFixed(2);
         differenceTotalEl.textContent = diffTotal.toFixed(2);
-        productionTotalEl.textContent = totalProd.toFixed(2);
+        productionTotalEl.textContent = `${totalProd.toFixed(2)} (日均: ${avgDailyProd})`;
+        
+        console.log(`月度统计汇总 - 总模组=${totalMod.toFixed(2)}, 总产出(含零件)=${totalProd.toFixed(2)}, 总期望=${totalExpected.toFixed(2)}, 模组差值=${diffTotal.toFixed(2)}, 总产出差值=${diffTotalWithParts.toFixed(2)}`);
         
         // 添加月度统计信息到页面
         updateMonthlyStatsDisplay(monthlyData);
