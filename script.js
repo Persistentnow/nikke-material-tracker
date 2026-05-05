@@ -503,7 +503,11 @@ materialForm.addEventListener('submit', (e) => {
         stageExpectation = isDouble ? 4.56 : 2.28;
     }
     
-    const diff = (parseFloat(totalProduction) - stageExpectation).toFixed(2);
+    // 计算差值 - 差值应该不包括零件产出，只基于模组数量
+    const diff = (totalModules - stageExpectation).toFixed(2);
+    
+    // 显示详细的计算日志
+    console.log(`差值计算 - 日期:${date}, 阶段:${stage}, 模组:${totalModules}, 零件:${parts}, 零件换算:${partsToMod}, 总产出:${totalProduction}, 期望:${stageExpectation}, 差值:${diff} (${totalModules} - ${stageExpectation})`);
 
     // 同日防重复
     if (materialRecords.some(i => i.date === date)) {
@@ -556,6 +560,29 @@ function renderTable() {
     }
 
     list.forEach(item => {
+        // 重新计算总产出量以确保准确性，特别是对旧数据
+        const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
+        const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
+        
+        // 重新计算差值以确保一致性 - 差值应该不包括零件产出，只基于模组数量
+        const expectedValue = item.stageExpectation || 0;
+        const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
+        
+        // 为所有记录添加详细调试信息，重点关注5月3-4号
+        if (item.date === '2025-05-03' || item.date === '2025-05-04' || !item.totalDiff) {
+            console.log(`=== ${item.date} 记录详细信息 ===`);
+            console.log(`原始数据:`, item);
+            console.log(`模组总数: ${item.totalModules}`);
+            console.log(`零件数量: ${item.parts}`);
+            console.log(`零件换算: ${recalculatedPartsToMod} (${item.parts}/100)`);
+            console.log(`原始总产出: ${item.totalProduction}`);
+            console.log(`重新计算总产出: ${recalculatedProduction}`);
+            console.log(`原始差值: ${item.diff}`);
+            console.log(`总产出差值: ${item.totalDiff}`);
+            console.log(`重新计算差值: ${recalculatedDiff} (${recalculatedProduction} - ${expectedValue})`);
+            console.log(`====================`);
+        }
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${item.date}</td>
@@ -566,9 +593,9 @@ function renderTable() {
             <td>${item.parts} ${item.isDouble ? '<span class="double-badge">X2</span>' : ''}</td>
             <td>${item.stageExpectation || '-'}</td>
             <td>${item.totalModules}</td>
-            <td>${item.partsToMod}</td>
-            <td class="production-value">${item.totalProduction}</td>
-            <td class="${item.diff >= 0 ? 'difference-positive' : 'difference-negative'}">${item.diff}</td>
+            <td>${recalculatedPartsToMod}</td>
+            <td class="production-value">${recalculatedProduction}</td>
+            <td class="${recalculatedDiff >= 0 ? 'difference-positive' : 'difference-negative'}">${recalculatedDiff}</td>
             <td><button class="delete-btn" onclick="del(${item.id})">删除</button></td>
         `;
         historyTable.appendChild(tr);
