@@ -262,20 +262,35 @@ function bindEvents(){
             
             console.log('日期望值:', {normalDaily, doubleDaily});
             
-            // 计算月期望
+            // 计算月期望 - 使用正确的公式：双倍天数x双倍期望值+普通天数x期望值
             const normalExpectation = normalDaily * normalDays;
             const doubleExpectation = doubleDaily * doubleDays;
             const monthlyExpectation = normalExpectation + doubleExpectation;
             
-            console.log('计算详情:');
-            console.log(`- 普通天数(${normalDays天})期望值: ${normalExpectation.toFixed(2)} (${normalDaily} × ${normalDays})`);
-            console.log(`- 双倍天数(${doubleDays天})期望值: ${doubleExpectation.toFixed(2)} (${doubleDaily} × ${doubleDays})`);
-            console.log(`- 月度总期望: ${monthlyExpectation.toFixed(2)}`);
+            console.log('=== 智能计算月期望详细信息 ===');
+            console.log(`- 选择阶段: ${stage}阶段`);
+            console.log(`- 日期望值: 普通=${normalDaily}, 双倍=${doubleDaily}`);
+            console.log(`- 天数设置: 普通=${normalDays}天, 双倍=${doubleDays}天`);
+            console.log(`- 计算过程:`);
+            console.log(`  - 普通天数期望值: ${normalDaily} × ${normalDays} = ${normalExpectation.toFixed(2)}`);
+            console.log(`  - 双倍天数期望值: ${doubleDaily} × ${doubleDays} = ${doubleExpectation.toFixed(2)}`);
+            console.log(`  - 月度总期望: ${normalExpectation.toFixed(2)} + ${doubleExpectation.toFixed(2)} = ${monthlyExpectation.toFixed(2)}`);
+            console.log(`- 最终结果: ${monthlyExpectation.toFixed(2)}`);
             
             expectationInput.value = monthlyExpectation.toFixed(2);
             
+            // 自动保存计算结果
+            expectations.monthly = monthlyExpectation;
+            save();
+            updateStats();
+            
+            console.log('智能计算结果已自动保存:', {
+                monthly: monthlyExpectation,
+                daily: monthlyExpectation / 30
+            });
+            
             // 显示计算结果提示
-            this.textContent = '计算完成!';
+            this.textContent = '计算完成并已保存!';
             this.style.background = 'linear-gradient(45deg, #4caf50, #45a049)';
             this.style.color = '#fff';
             setTimeout(() => {
@@ -694,12 +709,44 @@ function updateMonthlyStatsDisplay(monthlyData) {
     
     let html = '';
     sortedMonths.forEach(month => {
-        // 重新计算月度期望产出 - 基于该月每条记录的实际期望产出值相加
+        // 重新计算月度期望产出 - 使用与updateStats函数相同的计算逻辑
         let monthExpected = 0;
-        month.records.forEach(record => {
-            const recordExpectation = record.stageExpectation || expectations.daily;
-            monthExpected += recordExpectation;
-        });
+        if (expectations.monthly) {
+            // 统计该月的双倍和非双倍天数
+            let doubleDays = 0;
+            let normalDays = 0;
+            month.records.forEach(record => {
+                if (record.isDouble) {
+                    doubleDays++;
+                } else {
+                    normalDays++;
+                }
+            });
+            
+            // 获取用户设置的双倍和非双倍天数，用于计算总天数
+            const userDoubleDays = +document.getElementById('double-days').value || 13;
+            const userNormalDays = +document.getElementById('normal-days').value || 18;
+            const totalDaysInMonth = userDoubleDays + userNormalDays;
+            
+            // 使用正确的公式：(月期望 / 用户设置总天数) × 记录天数
+            const dailyRate = expectations.monthly / totalDaysInMonth;
+            monthExpected = dailyRate * month.days;
+            
+            console.log(`月度详细统计 - ${month.monthName}:`);
+            console.log(`  - 使用月期望计算: 月期望=${expectations.monthly}, 用户设置总天数=${totalDaysInMonth}`);
+            console.log(`  - 该月实际记录: 双倍天数=${doubleDays}, 普通天数=${normalDays}, 总记录天数=${month.days}`);
+            console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (${expectations.monthly} / ${totalDaysInMonth} × ${month.days})`);
+        } else {
+            // 使用日期望计算：基于每条记录的实际期望产出值相加
+            month.records.forEach(record => {
+                const recordExpectation = record.stageExpectation || expectations.daily;
+                monthExpected += recordExpectation;
+            });
+            
+            console.log(`月度详细统计 - ${month.monthName}:`);
+            console.log(`  - 使用日期望计算: 日期望=${expectations.daily}`);
+            console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (各记录期望产出之和)`);
+        }
         monthExpected = monthExpected.toFixed(2);
         const monthDiff = (month.totalModules - monthExpected).toFixed(2);
         const diffClass = parseFloat(monthDiff) >= 0 ? 'difference-positive' : 'difference-negative';
@@ -835,21 +882,50 @@ function updateStats() {
             totalProd += month.totalProduction;
             totalDays += month.days;
             
-            // 重新计算月度期望产出 - 基于该月每条记录的实际期望产出值相加
+            // 计算月度期望产出 - 根据用户设置的期望类型选择不同的计算方式
             let monthExpected = 0;
-            month.records.forEach(record => {
-                const recordExpectation = record.stageExpectation || expectations.daily;
-                monthExpected += recordExpectation;
-            });
-            totalExpected += monthExpected;
+            if (expectations.monthly) {
+                // 统计该月的双倍和非双倍天数
+                let doubleDays = 0;
+                let normalDays = 0;
+                month.records.forEach(record => {
+                    if (record.isDouble) {
+                        doubleDays++;
+                    } else {
+                        normalDays++;
+                    }
+                });
+                
+                // 获取用户设置的双倍和非双倍天数，用于计算总天数
+                const userDoubleDays = +document.getElementById('double-days').value || 13;
+                const userNormalDays = +document.getElementById('normal-days').value || 18;
+                const totalDaysInMonth = userDoubleDays + userNormalDays;
+                
+                // 使用正确的公式：(月期望 / 用户设置总天数) × 记录天数
+                const dailyRate = expectations.monthly / totalDaysInMonth;
+                monthExpected = dailyRate * month.days;
+                
+                console.log(`月度统计 - ${month.monthName}:`);
+                console.log(`  - 使用月期望计算: 月期望=${expectations.monthly}, 用户设置总天数=${totalDaysInMonth}`);
+                console.log(`  - 该月实际记录: 双倍天数=${doubleDays}, 普通天数=${normalDays}, 总记录天数=${month.days}`);
+                console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (${expectations.monthly} / ${totalDaysInMonth} × ${month.days})`);
+            } else {
+                // 使用日期望计算：基于每条记录的实际期望产出值相加
+                month.records.forEach(record => {
+                    const recordExpectation = record.stageExpectation || expectations.daily;
+                    monthExpected += recordExpectation;
+                });
+                
+                console.log(`月度统计 - ${month.monthName}:`);
+                console.log(`  - 使用日期望计算: 日期望=${expectations.daily}`);
+                console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (各记录期望产出之和)`);
+                console.log(`  - 详细记录:`);
+                month.records.forEach(record => {
+                    console.log(`    - ${record.date}: 期望=${record.stageExpectation || expectations.daily} (阶段=${record.stage}, 双倍=${record.isDouble})`);
+                });
+            }
             
-            console.log(`月度统计 - ${month.monthName}:`);
-            console.log(`  - 记录天数: ${month.days}`);
-            console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (各记录期望产出之和)`);
-            console.log(`  - 详细记录:`);
-            month.records.forEach(record => {
-                console.log(`    - ${record.date}: 期望=${record.stageExpectation || expectations.daily} (阶段=${record.stage}, 双倍=${record.isDouble})`);
-            });
+            totalExpected += monthExpected;
         });
         
         const diffTotal = totalMod - totalExpected;
