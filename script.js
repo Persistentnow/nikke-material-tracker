@@ -1,3 +1,61 @@
+// Theme management - Simplified and fixed version
+let currentTheme = 'dark'; // Default to dark theme
+
+// Initialize theme when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing theme system');
+    
+    // Get theme elements
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    
+    // Load saved theme or use default
+    const savedTheme = localStorage.getItem('nikke-theme');
+    if (savedTheme) {
+        currentTheme = savedTheme;
+        console.log('Loaded saved theme:', currentTheme);
+    }
+    
+    // Apply initial theme
+    applyTheme(currentTheme);
+    
+    // Add click event listener for theme toggle
+    themeToggleBtn.addEventListener('click', function() {
+        console.log('Theme toggle button clicked');
+        console.log('Current theme:', currentTheme);
+        
+        // Toggle theme
+        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        console.log('New theme:', currentTheme);
+        
+        // Apply new theme
+        applyTheme(currentTheme);
+        
+        // Save to localStorage
+        localStorage.setItem('nikke-theme', currentTheme);
+        console.log('Theme saved to localStorage:', localStorage.getItem('nikke-theme'));
+    });
+    
+    function applyTheme(theme) {
+        console.log('Applying theme:', theme);
+        
+        // Set data-theme attribute on root element
+        document.documentElement.setAttribute('data-theme', theme);
+        
+        // Update toggle button appearance
+        if (theme === 'light') {
+            themeIcon.textContent = '☀️';
+            themeText.textContent = '浅色模式';
+        } else {
+            themeIcon.textContent = '🌙';
+            themeText.textContent = '深色模式';
+        }
+        
+        console.log('Theme applied successfully');
+    }
+});
+
 let materialRecords = [];
 let expectations = { daily: 0, monthly: 0 };
 let currentStatsView = 'daily';
@@ -205,10 +263,16 @@ function bindEvents(){
             console.log('日期望值:', {normalDaily, doubleDaily});
             
             // 计算月期望
-            const monthlyExpectation = (normalDaily * normalDays) + (doubleDaily * doubleDays);
-            expectationInput.value = monthlyExpectation.toFixed(2);
+            const normalExpectation = normalDaily * normalDays;
+            const doubleExpectation = doubleDaily * doubleDays;
+            const monthlyExpectation = normalExpectation + doubleExpectation;
             
-            console.log('计算结果:', monthlyExpectation.toFixed(2));
+            console.log('计算详情:');
+            console.log(`- 普通天数(${normalDays天})期望值: ${normalExpectation.toFixed(2)} (${normalDaily} × ${normalDays})`);
+            console.log(`- 双倍天数(${doubleDays天})期望值: ${doubleExpectation.toFixed(2)} (${doubleDaily} × ${doubleDays})`);
+            console.log(`- 月度总期望: ${monthlyExpectation.toFixed(2)}`);
+            
+            expectationInput.value = monthlyExpectation.toFixed(2);
             
             // 显示计算结果提示
             this.textContent = '计算完成!';
@@ -286,14 +350,15 @@ function updateRealTimeCalculation() {
         expectedForCurrentDay = isDouble ? 4.56 : 2.28;
     }
     
-    const difference = (parseFloat(totalProduction) - expectedForCurrentDay).toFixed(2);
+    // 差值计算应该只基于模组数量，不包括零件产出
+    const difference = (totalModules - expectedForCurrentDay).toFixed(2);
     
     // 更新显示
     realtimeProductionEl.textContent = totalProduction;
     realtimeDifferenceEl.textContent = difference;
     realtimeDifferenceEl.className = `stats-value ${parseFloat(difference) >= 0 ? 'difference-positive' : 'difference-negative'}`;
     
-    console.log(`实时预览 - 模组=${totalModules}, 零件=${parts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${expectedForCurrentDay}, 差值=${difference}`);
+    console.log(`实时预览 - 模组=${totalModules}, 零件=${parts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${expectedForCurrentDay}, 差值=${difference} (${totalModules} - ${expectedForCurrentDay})`);
     
     // 添加视觉反馈
     const realtimeItems = document.querySelectorAll('.stats-item.real-time-calc');
@@ -629,7 +694,13 @@ function updateMonthlyStatsDisplay(monthlyData) {
     
     let html = '';
     sortedMonths.forEach(month => {
-        const monthExpected = expectations.monthly > 0 ? (expectations.monthly / month.daysInMonth * month.days).toFixed(2) : (expectations.daily * month.days).toFixed(2);
+        // 重新计算月度期望产出 - 基于该月每条记录的实际期望产出值相加
+        let monthExpected = 0;
+        month.records.forEach(record => {
+            const recordExpectation = record.stageExpectation || expectations.daily;
+            monthExpected += recordExpectation;
+        });
+        monthExpected = monthExpected.toFixed(2);
         const monthDiff = (month.totalModules - monthExpected).toFixed(2);
         const diffClass = parseFloat(monthDiff) >= 0 ? 'difference-positive' : 'difference-negative';
         
@@ -686,9 +757,21 @@ function updateStats() {
         });
         
         console.log(`按天统计 - 总模组:${totalMod}, 总零件:${totalParts}, 总零件换算:${totalPartsToMod.toFixed(2)}, 总产出:${totalProd}`);
-        const expectTotal = expectations.daily * materialRecords.length;
+        
+        // 重新计算期望产出总量 - 基于每条记录的实际期望产出值相加
+        let expectTotal = 0;
+        materialRecords.forEach(i => {
+            const recordExpectation = i.stageExpectation || expectations.daily;
+            expectTotal += recordExpectation;
+            console.log(`  - ${i.date}: 期望=${recordExpectation} (阶段=${i.stage}, 双倍=${i.isDouble})`);
+        });
+        
         const diffTotal = totalMod - expectTotal;
         const diffTotalWithParts = totalProd - expectTotal;
+        
+        console.log(`按天统计期望计算:`);
+        console.log(`- 记录天数: ${materialRecords.length}`);
+        console.log(`- 期望产出总量: ${expectTotal.toFixed(2)} (各记录期望产出之和)`);
 
         const avgDailyMod = materialRecords.length > 0 ? (totalMod / materialRecords.length).toFixed(2) : 0;
         const avgDailyProd = materialRecords.length > 0 ? (totalProd / materialRecords.length).toFixed(2) : 0;
@@ -752,19 +835,21 @@ function updateStats() {
             totalProd += month.totalProduction;
             totalDays += month.days;
             
-            // 根据月度期望值和实际记录天数计算期望产出
-            // 计算方式：(月度期望值 / 当月总天数) * 实际记录天数
-            if (expectations.monthly > 0) {
-                const dailyExpectation = expectations.monthly / month.daysInMonth;
-                const monthExpected = dailyExpectation * month.days;
-                totalExpected += monthExpected;
-                console.log(`月度统计 - ${month.monthName}: 月度期望=${expectations.monthly}, 当月天数=${month.daysInMonth}, 记录天数=${month.days}, 期望产出=${monthExpected.toFixed(2)}`);
-            } else {
-                // 如果没有设置月度期望值，使用每日期望值计算
-                const monthExpected = expectations.daily * month.days;
-                totalExpected += monthExpected;
-                console.log(`月度统计 - ${month.monthName}: 使用日期望=${expectations.daily}, 记录天数=${month.days}, 期望产出=${monthExpected.toFixed(2)}`);
-            }
+            // 重新计算月度期望产出 - 基于该月每条记录的实际期望产出值相加
+            let monthExpected = 0;
+            month.records.forEach(record => {
+                const recordExpectation = record.stageExpectation || expectations.daily;
+                monthExpected += recordExpectation;
+            });
+            totalExpected += monthExpected;
+            
+            console.log(`月度统计 - ${month.monthName}:`);
+            console.log(`  - 记录天数: ${month.days}`);
+            console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (各记录期望产出之和)`);
+            console.log(`  - 详细记录:`);
+            month.records.forEach(record => {
+                console.log(`    - ${record.date}: 期望=${record.stageExpectation || expectations.daily} (阶段=${record.stage}, 双倍=${record.isDouble})`);
+            });
         });
         
         const diffTotal = totalMod - totalExpected;
