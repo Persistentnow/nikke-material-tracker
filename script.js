@@ -545,12 +545,47 @@ function loadData() {
     materialRecords = JSON.parse(localStorage.getItem('nikkeRecords')) || [];
     expectations = JSON.parse(localStorage.getItem('nikkeExpect')) || { daily: 0, monthly: 0 };
     document.getElementById('expectation-value').value = expectations.daily;
+    
+    // 加载双倍天数和普通天数设置
+    const savedSettings = JSON.parse(localStorage.getItem('nikkeSettings')) || {};
+    const doubleDays = document.getElementById('double-days');
+    const normalDays = document.getElementById('normal-days');
+    const stageType = document.getElementById('stage-type');
+    
+    if (doubleDays && savedSettings.doubleDays !== undefined) {
+        doubleDays.value = savedSettings.doubleDays;
+    }
+    
+    if (normalDays && savedSettings.normalDays !== undefined) {
+        normalDays.value = savedSettings.normalDays;
+    }
+    
+    if (stageType && savedSettings.stageType !== undefined) {
+        stageType.value = savedSettings.stageType;
+    }
+    
+    console.log('加载设置:', savedSettings);
 }
 
 // 保存数据
 function save() {
     localStorage.setItem('nikkeRecords', JSON.stringify(materialRecords));
     localStorage.setItem('nikkeExpect', JSON.stringify(expectations));
+    
+    // 保存双倍天数和普通天数设置
+    const doubleDays = document.getElementById('double-days');
+    const normalDays = document.getElementById('normal-days');
+    const stageType = document.getElementById('stage-type');
+    
+    if (doubleDays && normalDays && stageType) {
+        const settings = {
+            doubleDays: doubleDays.value,
+            normalDays: normalDays.value,
+            stageType: stageType.value
+        };
+        localStorage.setItem('nikkeSettings', JSON.stringify(settings));
+        console.log('保存设置:', settings);
+    }
 }
 
 // 提交记录
@@ -645,21 +680,51 @@ function renderTable() {
         const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
         
         // 重新计算差值以确保一致性 - 差值应该不包括零件产出，只基于模组数量
-        const expectedValue = item.stageExpectation || 0;
+        let expectedValue = item.stageExpectation || 0;
+        
+        // 如果没有stageExpectation，尝试根据阶段和双倍状态重新计算
+        if (!expectedValue && item.stage) {
+            if (item.stage === '5') {
+                expectedValue = item.isDouble ? 3.32 : 1.66;
+            } else if (item.stage === '6') {
+                expectedValue = item.isDouble ? 4.31 : 2.15;
+            } else if (item.stage === '7') {
+                expectedValue = item.isDouble ? 4.56 : 2.28;
+            }
+        }
+        
+        // 如果仍然没有期望值，使用当前设置的日期望值
+        if (!expectedValue) {
+            expectedValue = expectations.daily || 0;
+        }
+        
         const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
         
-        // 为所有记录添加详细调试信息，重点关注5月3-4号
-        if (item.date === '2025-05-03' || item.date === '2025-05-04' || !item.totalDiff) {
+        // 为所有记录添加详细调试信息，重点关注5月13日和其他可能有问题的记录
+        if (item.date === '2025-05-13' || item.date === '2025-05-03' || item.date === '2025-05-04' || !item.totalDiff) {
             console.log(`=== ${item.date} 记录详细信息 ===`);
-            console.log(`原始数据:`, item);
-            console.log(`模组总数: ${item.totalModules}`);
-            console.log(`零件数量: ${item.parts}`);
-            console.log(`零件换算: ${recalculatedPartsToMod} (${item.parts}/100)`);
-            console.log(`原始总产出: ${item.totalProduction}`);
-            console.log(`重新计算总产出: ${recalculatedProduction}`);
-            console.log(`原始差值: ${item.diff}`);
-            console.log(`总产出差值: ${item.totalDiff}`);
-            console.log(`重新计算差值: ${recalculatedDiff} (${recalculatedProduction} - ${expectedValue})`);
+            console.log(`原始数据:`, JSON.stringify(item, null, 2));
+            console.log(`基本信息:`);
+            console.log(`  - 模组总数: ${item.totalModules} (${item.m1} + ${item.m2} + ${item.m3})`);
+            console.log(`  - 零件数量: ${item.parts} ${item.isDouble ? '(双倍产出)' : ''}`);
+            console.log(`  - 阶段: ${item.stage || '未设置'}`);
+            console.log(`产出计算:`);
+            console.log(`  - 零件换算: ${recalculatedPartsToMod} (${item.parts}/100)`);
+            console.log(`  - 原始总产出: ${item.totalProduction}`);
+            console.log(`  - 重新计算总产出: ${recalculatedProduction} (${item.totalModules} + ${recalculatedPartsToMod})`);
+            console.log(`差值计算:`);
+            console.log(`  - 原始差值: ${item.diff}`);
+            console.log(`  - 总产出差值: ${item.totalDiff}`);
+            console.log(`  - 原始期望产出: ${item.stageExpectation || '未设置'}`);
+            console.log(`  - 重新计算期望产出: ${expectedValue}`);
+            console.log(`  - 重新计算差值: ${recalculatedDiff} (${item.totalModules} - ${expectedValue})`);
+            if (item.date === '2025-05-13') {
+                console.log(`=== 5月13日记录特别分析 ===`);
+                console.log(`  - 是否有stageExpectation: ${item.stageExpectation !== undefined ? '是: ' + item.stageExpectation : '否'}`);
+                console.log(`  - 是否有阶段信息: ${item.stage ? '是: ' + item.stage : '否'}`);
+                console.log(`  - 是否为双倍产出: ${item.isDouble ? '是' : '否'}`);
+                console.log(`  - 期望值计算来源: ${item.stageExpectation !== undefined ? '记录中的stageExpectation' : item.stage ? '根据阶段' + item.stage + '和双倍状态' + (item.isDouble ? '是' : '否') + '计算' : '使用当前日期望值'}`);
+            }
             console.log(`====================`);
         }
         
