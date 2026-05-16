@@ -121,10 +121,25 @@ doublePartsCheck.addEventListener('change', function () {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('=== 开始初始化NIKKE材料记录工具 ===');
+    
     document.getElementById('record-date').valueAsDate = new Date();
+    
+    // 加载数据
+    console.log('1. 加载本地数据...');
     loadData();
+    
+    // 初始化实时设置保存
+    console.log('2. 设置实时保存功能...');
+    setupRealTimeSettingsSave();
+    
+    // 更新界面
+    console.log('3. 更新界面显示...');
     renderTable();
     updateStats();
+    
+    // 绑定事件
+    console.log('4. 绑定事件处理...');
     bindEvents();
     setupRealTimeCalculation();
     setupDateNavigation();
@@ -138,6 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         advancedMonthly.style.display = 'none';
     }
+    
+    console.log('=== 初始化完成 ===');
 });
 
 // 绑定事件
@@ -569,22 +586,81 @@ function loadData() {
 
 // 保存数据
 function save() {
-    localStorage.setItem('nikkeRecords', JSON.stringify(materialRecords));
-    localStorage.setItem('nikkeExpect', JSON.stringify(expectations));
+    try {
+        localStorage.setItem('nikkeRecords', JSON.stringify(materialRecords));
+        localStorage.setItem('nikkeExpect', JSON.stringify(expectations));
+        console.log('保存记录和期望设置成功');
+        
+        // 保存双倍天数和普通天数设置
+        const doubleDays = document.getElementById('double-days');
+        const normalDays = document.getElementById('normal-days');
+        const stageType = document.getElementById('stage-type');
+        
+        if (doubleDays && normalDays && stageType) {
+            const settings = {
+                doubleDays: doubleDays.value,
+                normalDays: normalDays.value,
+                stageType: stageType.value
+            };
+            localStorage.setItem('nikkeSettings', JSON.stringify(settings));
+            console.log('保存高级设置成功:', settings);
+        } else {
+            console.warn('无法获取设置元素:', {
+                doubleDays: !!doubleDays,
+                normalDays: !!normalDays,
+                stageType: !!stageType
+            });
+        }
+    } catch (error) {
+        console.error('保存数据失败:', error);
+    }
+}
+
+// 实时保存设置
+function setupRealTimeSettingsSave() {
+    const settingElements = ['double-days', 'normal-days', 'stage-type'];
     
-    // 保存双倍天数和普通天数设置
-    const doubleDays = document.getElementById('double-days');
-    const normalDays = document.getElementById('normal-days');
-    const stageType = document.getElementById('stage-type');
-    
-    if (doubleDays && normalDays && stageType) {
-        const settings = {
-            doubleDays: doubleDays.value,
-            normalDays: normalDays.value,
-            stageType: stageType.value
-        };
-        localStorage.setItem('nikkeSettings', JSON.stringify(settings));
-        console.log('保存设置:', settings);
+    settingElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', function() {
+                console.log(`设置 ${id} 变更为: ${this.value}`);
+                saveSettings();
+            });
+            
+            element.addEventListener('input', function() {
+                // 对于数字输入，也在输入时保存
+                if (this.type === 'number') {
+                    console.log(`设置 ${id} 输入为: ${this.value}`);
+                }
+            });
+        } else {
+            console.warn('无法找到设置元素:', id);
+        }
+    });
+}
+
+// 单独保存设置
+function saveSettings() {
+    try {
+        const doubleDays = document.getElementById('double-days');
+        const normalDays = document.getElementById('normal-days');
+        const stageType = document.getElementById('stage-type');
+        
+        if (doubleDays && normalDays && stageType) {
+            const settings = {
+                doubleDays: doubleDays.value,
+                normalDays: normalDays.value,
+                stageType: stageType.value
+            };
+            localStorage.setItem('nikkeSettings', JSON.stringify(settings));
+            console.log('实时保存设置成功:', settings);
+            
+            // 显示保存提示
+            showNotification('设置已自动保存', 'success');
+        }
+    } catch (error) {
+        console.error('实时保存设置失败:', error);
     }
 }
 
