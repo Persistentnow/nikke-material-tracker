@@ -4,176 +4,272 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NIKKE材料记录工具</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <!-- Theme Toggle -->
     <div class="theme-toggle">
-        <button type="button" id="theme-toggle-btn" class="theme-toggle-btn">
-            <span class="theme-toggle-icon" id="theme-icon">🌙</span>
-            <span class="theme-toggle-text" id="theme-text">深色模式</span>
-        </button>
+        <div class="theme-options">
+            <button type="button" data-theme="dark" class="theme-option-btn active" title="深色模式">
+                <i class="fas fa-moon"></i>
+            </button>
+            <button type="button" data-theme="light" class="theme-option-btn" title="浅色模式">
+                <i class="fas fa-sun"></i>
+            </button>
+            <button type="button" data-theme="nikke" class="theme-option-btn" title="NIKKE主题">
+                <i class="fas fa-gamepad"></i>
+            </button>
+        </div>
     </div>
     
     <div class="container">
         <header>
-            <h1>NIKKE游戏材料记录工具</h1>
-            <p>定制模组及定制模组零件记录与统计</p>
+            <h1><i class="fas fa-trophy"></i> NIKKE游戏材料记录工具</h1>
+            <p><i class="fas fa-cube"></i> 定制模组及定制模组零件记录与统计</p>
         </header>
 
         <main>
             <section class="input-section">
-                <h2>数据录入</h2>
+                <h2><i class="fas fa-edit"></i> 数据录入</h2>
                 <form id="material-form">
                     <div class="form-group">
-                        <label for="record-date">日期</label>
+                        <label for="record-date"><i class="fas fa-calendar-alt"></i> 日期</label>
                         <div class="date-input-group">
-                            <button type="button" id="prev-day" class="date-nav-btn">&lt;</button>
+                            <button type="button" id="prev-day" class="date-nav-btn"><i class="fas fa-chevron-left"></i></button>
                             <input type="date" id="record-date" required>
-                            <button type="button" id="next-day" class="date-nav-btn">&gt;</button>
+                            <button type="button" id="next-day" class="date-nav-btn"><i class="fas fa-chevron-right"></i></button>
                         </div>
                     </div>
                     
-                    <div class="acquisition-group">
-                        <h3>第一次获取</h3>
-                        <div class="form-group">
-                            <label for="modules-1">定制模组数量</label>
-                            <input type="number" id="modules-1" min="0" value="0" required>
+                    <div class="acquisition-grid">
+                        <div class="acquisition-item">
+                            <div class="acquisition-header">
+                                <span class="acquisition-number">1</span>
+                                <span>第一次获取</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="modules-1">定制模组数量</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-cube"></i>
+                                    <input type="number" id="modules-1" min="0" value="0" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="acquisition-item">
+                            <div class="acquisition-header">
+                                <span class="acquisition-number">2</span>
+                                <span>第二次获取</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="modules-2">定制模组数量</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-cube"></i>
+                                    <input type="number" id="modules-2" min="0" value="0" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="acquisition-item">
+                            <div class="acquisition-header">
+                                <span class="acquisition-number">3</span>
+                                <span>第三次获取</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="modules-3">定制模组数量</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-cube"></i>
+                                    <input type="number" id="modules-3" min="0" value="0" required>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="acquisition-group">
-                        <h3>第二次获取</h3>
-                        <div class="form-group">
-                            <label for="modules-2">定制模组数量</label>
-                            <input type="number" id="modules-2" min="0" value="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="acquisition-group">
-                        <h3>第三次获取</h3>
-                        <div class="form-group">
-                            <label for="modules-3">定制模组数量</label>
-                            <input type="number" id="modules-3" min="0" value="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="parts-group">
-                        <h3>定制模组零件</h3>
-                        <div class="form-group">
-                            <label for="parts-stage">选择阶段</label>
-                            <select id="parts-stage">
-                                <option value="">请选择阶段</option>
-                                <option value="5">5阶段 (81零件)</option>
-                                <option value="6">6阶段 (105零件)</option>
-                                <option value="7">7阶段 (111零件)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="parts">定制模组零件数量</label>
-                            <input type="number" id="parts" min="0" value="0" required>
+                    <div class="parts-section">
+                        <h3><i class="fas fa-cog"></i> 定制模组零件</h3>
+                        <div class="parts-grid">
+                            <div class="form-group">
+                                <label for="parts-stage">选择阶段</label>
+                                <div class="select-with-icon">
+                                    <i class="fas fa-layer-group"></i>
+                                    <select id="parts-stage">
+                                        <option value="">请选择阶段</option>
+                                        <option value="5">5阶段 (81零件)</option>
+                                        <option value="6">6阶段 (105零件)</option>
+                                        <option value="7">7阶段 (111零件)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="parts">定制模组零件数量</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-puzzle-piece"></i>
+                                    <input type="number" id="parts" min="0" value="0" required>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
                     <div class="double-output-group">
-                        <label>
-                            <input type="checkbox" id="double-parts-check"> 启用双倍产出（仅零件翻倍）
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="double-parts-check">
+                            <span class="checkbox-custom"></span>
+                            <span><i class="fas fa-bolt"></i> 启用双倍产出（仅零件翻倍）</span>
                         </label>
                     </div>
                     
-                    <button type="submit" class="submit-btn">提交记录</button>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-check-circle"></i> 提交记录
+                    </button>
                 </form>
             </section>
 
             <section class="settings-section">
-                <h2>期望产出设置</h2>
+                <h2><i class="fas fa-sliders-h"></i> 期望产出设置</h2>
                 <div class="settings-form">
                     <div class="form-group">
                         <label for="expectation-type">设置类型</label>
-                        <select id="expectation-type">
-                            <option value="daily">按天</option>
-                            <option value="monthly">按月</option>
-                        </select>
+                        <div class="select-with-icon">
+                            <i class="fas fa-clock"></i>
+                            <select id="expectation-type">
+                                <option value="daily">按天</option>
+                                <option value="monthly">按月</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="expectation-value">期望产出值</label>
-                        <input type="number" id="expectation-value" min="0" step="0.01">
+                        <div class="input-with-icon">
+                            <i class="fas fa-bullseye"></i>
+                            <input type="number" id="expectation-value" min="0" step="0.01">
+                        </div>
                     </div>
                     <div class="form-group advanced-monthly" style="display: none;">
-                        <label>智能月度设置</label>
+                        <label><i class="fas fa-magic"></i> 智能月度设置</label>
                         <div class="advanced-monthly-content">
                             <div class="form-row">
                                 <div class="form-col">
                                     <label for="double-days">双倍天数/月</label>
-                                    <input type="number" id="double-days" min="0" max="31" value="7" step="1">
+                                    <div class="input-with-icon">
+                                        <i class="fas fa-sun"></i>
+                                        <input type="number" id="double-days" min="0" max="31" value="7" step="1">
+                                    </div>
                                 </div>
                                 <div class="form-col">
                                     <label for="normal-days">普通天数/月</label>
-                                    <input type="number" id="normal-days" min="0" max="31" value="23" step="1">
+                                    <div class="input-with-icon">
+                                        <i class="fas fa-cloud"></i>
+                                        <input type="number" id="normal-days" min="0" max="31" value="23" step="1">
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-col">
                                     <label for="stage-type">默认阶段</label>
-                                    <select id="stage-type">
-                                        <option value="6">6阶段 (推荐)</option>
-                                        <option value="7">7阶段 (推荐)</option>
-                                        <option value="5">5阶段 (使用默认期望值)</option>
-                                    </select>
+                                    <div class="select-with-icon">
+                                        <i class="fas fa-layer-group"></i>
+                                        <select id="stage-type">
+                                            <option value="6">6阶段 (推荐)</option>
+                                            <option value="7">7阶段 (推荐)</option>
+                                            <option value="5">5阶段</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <button type="button" id="calculate-monthly" class="calculate-btn">智能计算月期望</button>
+                                <button type="button" id="calculate-monthly" class="calculate-btn">
+                                    <i class="fas fa-calculator"></i> 智能计算月期望
+                                </button>
                             </div>
                         </div>
                     </div>
-                    <button id="save-expectation" class="save-btn">保存设置</button>
+                    <button id="save-expectation" class="save-btn">
+                        <i class="fas fa-save"></i> 保存设置
+                    </button>
                 </div>
             </section>
 
             <section class="stats-section">
-                <h2>数据统计</h2>
+                <h2><i class="fas fa-chart-bar"></i> 数据统计</h2>
                 <div class="stats-controls">
-                    <button id="daily-stats" class="stats-btn active">按天统计</button>
-                    <button id="monthly-stats" class="stats-btn">按月统计</button>
+                    <button id="daily-stats" class="stats-btn active">
+                        <i class="fas fa-calendar-day"></i> 按天统计
+                    </button>
+                    <button id="monthly-stats" class="stats-btn">
+                        <i class="fas fa-calendar-month"></i> 按月统计
+                    </button>
                 </div>
-                <div class="stats-content">
-                    <div class="stats-item">
-                        <span class="stats-label">实际产出总量（定制模组）：</span>
-                        <span id="actual-total" class="stats-value">0</span>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                            <i class="fas fa-cube"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">实际产出</div>
+                            <div class="stat-value" id="actual-total">0</div>
+                        </div>
                     </div>
-                    <div class="stats-item">
-                        <span class="stats-label">期望产出总量：</span>
-                        <span id="expected-total" class="stats-value">0</span>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f472b6, #ec4899);">
+                            <i class="fas fa-bullseye"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">期望产出</div>
+                            <div class="stat-value" id="expected-total">0</div>
+                        </div>
                     </div>
-                    <div class="stats-item">
-                        <span class="stats-label">差值：</span>
-                        <span id="difference-total" class="stats-value">0</span>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">差值</div>
+                            <div class="stat-value" id="difference-total">0</div>
+                        </div>
                     </div>
-                    <div class="stats-item">
-                        <span class="stats-label">总产出量（含零件换算）：</span>
-                        <span id="production-total" class="stats-value">0</span>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            <i class="fas fa-box-open"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">总产出（含零件）</div>
+                            <div class="stat-value" id="production-total">0</div>
+                        </div>
                     </div>
-                    <div class="stats-item real-time-calc enhanced">
-                        <span class="stats-label">实时预览 - 总产出量：</span>
-                        <span id="realtime-production" class="stats-value">0</span>
-                    </div>
-                    <div class="stats-item real-time-calc enhanced">
-                        <span class="stats-label">实时预览 - 与期望差值：</span>
-                        <span id="realtime-difference" class="stats-value">0</span>
+                </div>
+                
+                <div class="realtime-preview">
+                    <h4><i class="fas fa-eye"></i> 实时预览</h4>
+                    <div class="realtime-stats">
+                        <div class="realtime-stat">
+                            <span class="realtime-label">总产出量：</span>
+                            <span class="realtime-value" id="realtime-production">0</span>
+                        </div>
+                        <div class="realtime-stat">
+                            <span class="realtime-label">与期望差值：</span>
+                            <span class="realtime-value" id="realtime-difference">0</span>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- 月度统计详细信息 -->
                 <div id="monthly-stats-detail" class="monthly-stats-detail" style="display: none;">
-                    <h3>月度详细统计</h3>
+                    <h3><i class="fas fa-chart-line"></i> 月度详细统计</h3>
                     <div id="monthly-stats-container" class="monthly-stats-container"></div>
                 </div>
             </section>
 
             <section class="charts-section">
-                <h2>数据可视化</h2>
+                <h2><i class="fas fa-chart-area"></i> 数据可视化</h2>
                 <div class="charts-controls">
-                    <button id="chart-trend" class="chart-btn active">产出趋势</button>
-                    <button id="chart-distribution" class="chart-btn">产出分布</button>
+                    <button id="chart-trend" class="chart-btn active">
+                        <i class="fas fa-chart-line"></i> 产出趋势
+                    </button>
+                    <button id="chart-distribution" class="chart-btn">
+                        <i class="fas fa-chart-bar"></i> 产出分布
+                    </button>
                 </div>
                 <div class="charts-container">
                     <canvas id="trendChart"></canvas>
@@ -182,42 +278,102 @@
             </section>
 
             <section class="history-section">
-                <h2>历史记录</h2>
-                <div class="history-controls">
-                    <button id="sort-date" class="sort-btn active">按日期排序</button>
-                    <button id="sort-difference" class="sort-btn">按差值排序</button>
+                <h2><i class="fas fa-history"></i> 历史记录</h2>
+                <div class="history-toolbar">
+                    <div class="history-controls">
+                        <button id="sort-date" class="sort-btn active">
+                            <i class="fas fa-sort"></i> 按日期排序
+                        </button>
+                        <button id="sort-difference" class="sort-btn">
+                            <i class="fas fa-sort-amount-down"></i> 按差值排序
+                        </button>
+                    </div>
+                    
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <input type="date" id="filter-start-date" placeholder="开始日期">
+                        </div>
+                        <div class="filter-group">
+                            <input type="date" id="filter-end-date" placeholder="结束日期">
+                        </div>
+                        <div class="filter-group">
+                            <select id="filter-stage">
+                                <option value="">所有阶段</option>
+                                <option value="5">5阶段</option>
+                                <option value="6">6阶段</option>
+                                <option value="7">7阶段</option>
+                            </select>
+                        </div>
+                        <div class="filter-group search-group">
+                            <i class="fas fa-search"></i>
+                            <input type="search" id="search-input" placeholder="搜索...">
+                        </div>
+                    </div>
                 </div>
+                
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr>
                                 <th>日期</th>
-                                <th>第一次</th>
-                                <th>第二次</th>
-                                <th>第三次</th>
+                                <th class="mobile-hide">第一次</th>
+                                <th class="mobile-hide">第二次</th>
+                                <th class="mobile-hide">第三次</th>
                                 <th>零件</th>
+                                <th>阶段</th>
                                 <th>模组总数</th>
-                                <th>零件换算</th>
-                                <th>总产出</th>
+                                <th class="mobile-hide">零件换算</th>
+                                <th class="mobile-hide">总产出</th>
                                 <th>差值</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="history-table"></tbody>
                     </table>
-                    <div id="no-records" style="text-align:center;padding:20px;display:none">暂无记录</div>
+                    <div id="no-records" style="text-align:center;padding:20px;display:none">
+                        <i class="fas fa-inbox"></i>
+                        <p>暂无记录</p>
+                    </div>
                 </div>
             </section>
         </main>
         
         <footer class="footer">
             <div class="import-export-controls">
-                <button id="export-data" class="action-btn export-btn">导出 JSON</button>
-                <button id="export-csv-data" class="action-btn csv-btn">导出 CSV</button>
-                <button id="import-data" class="action-btn import-btn">导入数据</button>
+                <button id="export-data" class="action-btn export-btn">
+                    <i class="fas fa-file-export"></i> 导出 JSON
+                </button>
+                <button id="export-csv-data" class="action-btn csv-btn">
+                    <i class="fas fa-file-csv"></i> 导出 CSV
+                </button>
+                <button id="import-data" class="action-btn import-btn">
+                    <i class="fas fa-file-import"></i> 导入数据
+                </button>
                 <input type="file" id="file-input" accept=".json" style="display: none;">
             </div>
+            
+            <div class="keyboard-hints">
+                <p><i class="fas fa-keyboard"></i> 快捷键提示：<kbd>Ctrl</kbd>+<kbd>S</kbd> 保存</p>
+            </div>
         </footer>
+    </div>
+    
+    <!-- Floating Action Button -->
+    <div class="fab-container">
+        <button class="fab-main" id="fab-main">
+            <i class="fas fa-plus"></i>
+        </button>
+        <div class="fab-menu" id="fab-menu">
+            <button class="fab-item" id="fab-export-json" title="导出 JSON">
+                <i class="fas fa-file-export"></i>
+            </button>
+            <button class="fab-item" id="fab-export-csv" title="导出 CSV">
+                <i class="fas fa-file-csv"></i>
+            </button>
+            <button class="fab-item" id="fab-import" title="导入数据">
+                <i class="fas fa-file-import"></i>
+            </button>
+        </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <script src="script.js"></script>
