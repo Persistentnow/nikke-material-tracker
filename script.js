@@ -1,66 +1,80 @@
-// Theme management - Simplified and fixed version
-let currentTheme = 'dark'; // Default to dark theme
+// ==================== 常量定义 ====================
+const THEMES = {
+  DARK: 'dark',
+  LIGHT: 'light'
+};
 
-// Initialize theme when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing theme system');
-    
-    // Get theme elements
-    const themeToggleBtn = document.getElementById('theme-toggle-btn');
-    const themeIcon = document.getElementById('theme-icon');
-    const themeText = document.getElementById('theme-text');
-    
-    // Load saved theme or use default
-    const savedTheme = localStorage.getItem('nikke-theme');
-    if (savedTheme) {
-        currentTheme = savedTheme;
-        console.log('Loaded saved theme:', currentTheme);
-    }
-    
-    // Apply initial theme
-    applyTheme(currentTheme);
-    
-    // Add click event listener for theme toggle
-    themeToggleBtn.addEventListener('click', function() {
-        console.log('Theme toggle button clicked');
-        console.log('Current theme:', currentTheme);
-        
-        // Toggle theme
-        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        console.log('New theme:', currentTheme);
-        
-        // Apply new theme
-        applyTheme(currentTheme);
-        
-        // Save to localStorage
-        localStorage.setItem('nikke-theme', currentTheme);
-        console.log('Theme saved to localStorage:', localStorage.getItem('nikke-theme'));
-    });
-    
-    function applyTheme(theme) {
-        console.log('Applying theme:', theme);
-        
-        // Set data-theme attribute on root element
-        document.documentElement.setAttribute('data-theme', theme);
-        
-        // Update toggle button appearance
-        if (theme === 'light') {
-            themeIcon.textContent = '☀️';
-            themeText.textContent = '浅色模式';
-        } else {
-            themeIcon.textContent = '🌙';
-            themeText.textContent = '深色模式';
-        }
-        
-        console.log('Theme applied successfully');
-    }
-});
+const STORAGE_KEYS = {
+  THEME: 'nikke-theme',
+  RECORDS: 'nikkeRecords',
+  EXPECTATIONS: 'nikkeExpect',
+  SETTINGS: 'nikkeSettings'
+};
 
+const STAGE_EXPECTATIONS = {
+  '5': { normal: 1.66, double: 3.32 },
+  '6': { normal: 2.15, double: 4.31 },
+  '7': { normal: 2.28, double: 4.56 }
+};
+
+const STAGE_PARTS = {
+  '5': 81,
+  '6': 105,
+  '7': 111
+};
+
+// ==================== 全局状态 ====================
+let currentTheme = THEMES.DARK;
 let materialRecords = [];
 let expectations = { daily: 0, monthly: 0 };
 let currentStatsView = 'daily';
 let currentSortBy = 'date';
+let isEditing = false;
+let editingId = null;
 
+// ==================== 工具函数 ====================
+function getStageExpectation(stage, isDouble) {
+  const expectations = STAGE_EXPECTATIONS[stage];
+  return expectations ? (isDouble ? expectations.double : expectations.normal) : 0;
+}
+
+function sanitizeHTML(str) {
+  const temp = document.createElement('div');
+  temp.textContent = str;
+  return temp.innerHTML;
+}
+
+function validateRecord(data) {
+  const errors = [];
+  
+  if (!data.date) {
+    errors.push('日期不能为空');
+  }
+  
+  if (data.m1 < 0 || data.m2 < 0 || data.m3 < 0 || data.parts < 0) {
+    errors.push('数量不能为负数');
+  }
+  
+  if (!data.stage) {
+    errors.push('请选择阶段');
+  }
+  
+  return { isValid: errors.length === 0, errors };
+}
+
+// ==================== 错误处理 ====================
+window.onerror = (msg, url, lineNo, columnNo, error) => {
+  console.error('Global error:', error);
+  showNotification('发生了一个错误，请刷新页面重试', 'error');
+  return false;
+};
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  showNotification('发生了一个错误，请刷新页面重试', 'error');
+});
+
+// ==================== DOM 元素 ====================
 const materialForm = document.getElementById('material-form');
 const historyTable = document.getElementById('history-table');
 const noRecords = document.getElementById('no-records');
@@ -73,88 +87,101 @@ const productionTotalEl = document.getElementById('production-total');
 const realtimeProductionEl = document.getElementById('realtime-production');
 const realtimeDifferenceEl = document.getElementById('realtime-difference');
 
-// 阶段选择自动填零件数量和期望产出
-document.getElementById('parts-stage').addEventListener('change', function () {
-    const partsInput = document.getElementById('parts');
-    const expectationInput = document.getElementById('expectation-value');
-    const isDouble = doublePartsCheck.checked;
-    const expectationType = document.getElementById('expectation-type').value;
+// ==================== 主题管理 ====================
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM loaded, initializing theme system');
+  
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  const themeIcon = document.getElementById('theme-icon');
+  const themeText = document.getElementById('theme-text');
+  
+  const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+  if (savedTheme) {
+    currentTheme = savedTheme;
+    console.log('Loaded saved theme:', currentTheme);
+  }
+  
+  applyTheme(currentTheme);
+  
+  themeToggleBtn.addEventListener('click', function() {
+    console.log('Theme toggle button clicked');
+    currentTheme = currentTheme === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK;
+    applyTheme(currentTheme);
+    localStorage.setItem(STORAGE_KEYS.THEME, currentTheme);
+  });
+  
+  function applyTheme(theme) {
+    console.log('Applying theme:', theme);
+    document.documentElement.setAttribute('data-theme', theme);
     
-    switch (this.value) {
-        case '5': 
-            partsInput.value = 81; 
-            const dailyValue5 = isDouble ? 3.32 : 1.66;
-            expectationInput.value = expectationType === 'monthly' ? (dailyValue5 * 30).toFixed(2) : dailyValue5;
-            break;
-        case '6': 
-            partsInput.value = 105;
-            const dailyValue6 = isDouble ? 4.31 : 2.15;
-            expectationInput.value = expectationType === 'monthly' ? (dailyValue6 * 30).toFixed(2) : dailyValue6;
-            break;
-        case '7': 
-            partsInput.value = 111;
-            const dailyValue7 = isDouble ? 4.56 : 2.28;
-            expectationInput.value = expectationType === 'monthly' ? (dailyValue7 * 30).toFixed(2) : dailyValue7;
-            break;
-        default: 
-            partsInput.value = 0;
-    }
-});
-
-// 双倍产出勾选时更新期望值
-doublePartsCheck.addEventListener('change', function () {
-    const stage = document.getElementById('parts-stage').value;
-    const expectationInput = document.getElementById('expectation-value');
-    const expectationType = document.getElementById('expectation-type').value;
-    
-    if (stage === '5') {
-        const dailyValue = this.checked ? 3.32 : 1.66;
-        expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
-    } else if (stage === '6') {
-        const dailyValue = this.checked ? 4.31 : 2.15;
-        expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
-    } else if (stage === '7') {
-        const dailyValue = this.checked ? 4.56 : 2.28;
-        expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
-    }
-});
-
-// 初始化
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('=== 开始初始化NIKKE材料记录工具 ===');
-    
-    document.getElementById('record-date').valueAsDate = new Date();
-    
-    // 加载数据
-    console.log('1. 加载本地数据...');
-    loadData();
-    
-    // 初始化实时设置保存
-    console.log('2. 设置实时保存功能...');
-    setupRealTimeSettingsSave();
-    
-    // 更新界面
-    console.log('3. 更新界面显示...');
-    renderTable();
-    updateStats();
-    
-    // 绑定事件
-    console.log('4. 绑定事件处理...');
-    bindEvents();
-    setupRealTimeCalculation();
-    setupDateNavigation();
-    setupImportExport();
-    
-    // 初始化高级设置面板显示状态
-    const expectationType = document.getElementById('expectation-type');
-    const advancedMonthly = document.querySelector('.advanced-monthly');
-    if (expectationType.value === 'monthly') {
-        advancedMonthly.style.display = 'block';
+    if (theme === THEMES.LIGHT) {
+      themeIcon.textContent = '☀️';
+      themeText.textContent = '浅色模式';
     } else {
-        advancedMonthly.style.display = 'none';
+      themeIcon.textContent = '🌙';
+      themeText.textContent = '深色模式';
     }
-    
-    console.log('=== 初始化完成 ===');
+  }
+});
+
+// ==================== 阶段选择 ====================
+document.getElementById('parts-stage').addEventListener('change', function () {
+  const partsInput = document.getElementById('parts');
+  const expectationInput = document.getElementById('expectation-value');
+  const isDouble = doublePartsCheck.checked;
+  const expectationType = document.getElementById('expectation-type').value;
+  
+  if (STAGE_PARTS[this.value]) {
+    partsInput.value = STAGE_PARTS[this.value];
+    const dailyValue = getStageExpectation(this.value, isDouble);
+    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+  } else {
+    partsInput.value = 0;
+  }
+});
+
+doublePartsCheck.addEventListener('change', function () {
+  const stage = document.getElementById('parts-stage').value;
+  const expectationInput = document.getElementById('expectation-value');
+  const expectationType = document.getElementById('expectation-type').value;
+  
+  if (STAGE_EXPECTATIONS[stage]) {
+    const dailyValue = getStageExpectation(stage, this.checked);
+    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+  }
+});
+
+// ==================== 初始化 ====================
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('=== 开始初始化NIKKE材料记录工具 ===');
+  
+  document.getElementById('record-date').valueAsDate = new Date();
+  
+  console.log('1. 加载本地数据...');
+  loadData();
+  
+  console.log('2. 设置实时保存功能...');
+  setupRealTimeSettingsSave();
+  
+  console.log('3. 更新界面显示...');
+  renderTable();
+  updateStats();
+  
+  console.log('4. 绑定事件处理...');
+  bindEvents();
+  setupRealTimeCalculation();
+  setupDateNavigation();
+  setupImportExport();
+  
+  const expectationType = document.getElementById('expectation-type');
+  const advancedMonthly = document.querySelector('.advanced-monthly');
+  if (expectationType.value === 'monthly') {
+    advancedMonthly.style.display = 'block';
+  } else {
+    advancedMonthly.style.display = 'none';
+  }
+  
+  console.log('=== 初始化完成 ===');
 });
 
 // 绑定事件
@@ -246,76 +273,64 @@ function bindEvents(){
     // 智能计算月期望
     const calculateBtn = document.getElementById('calculate-monthly');
     if (calculateBtn) {
-        calculateBtn.addEventListener('click', function() {
-            console.log('开始智能计算月期望');
-            
-            const doubleDays = +document.getElementById('double-days').value || 0;
-            const normalDays = +document.getElementById('normal-days').value || 0;
-            const stage = document.getElementById('stage-type').value;
-            const expectationInput = document.getElementById('expectation-value');
-            
-            console.log('计算参数:', {doubleDays, normalDays, stage});
-            
-            // 根据阶段获取日期望
-            let normalDaily, doubleDaily;
-            if (stage === '5') {
-                normalDaily = 1.66;
-                doubleDaily = 3.32;
-                console.log('使用5阶段预设值:', {normalDaily, doubleDaily});
-            } else if (stage === '6') {
-                normalDaily = 2.15;
-                doubleDaily = 4.31;
-                console.log('使用6阶段预设值:', {normalDaily, doubleDaily});
-            } else if (stage === '7') {
-                normalDaily = 2.28;
-                doubleDaily = 4.56;
-                console.log('使用7阶段预设值:', {normalDaily, doubleDaily});
-            } else {
-                // 默认情况
-                normalDaily = expectations.daily || 1.66; // 使用5阶段的期望值作为默认值
-                doubleDaily = normalDaily * 2;
-                console.log('使用默认设置，日期望值:', {normalDaily, doubleDaily});
-            }
-            
-            console.log('日期望值:', {normalDaily, doubleDaily});
-            
-            // 计算月期望 - 使用正确的公式：双倍天数x双倍期望值+普通天数x期望值
-            const normalExpectation = normalDaily * normalDays;
-            const doubleExpectation = doubleDaily * doubleDays;
-            const monthlyExpectation = normalExpectation + doubleExpectation;
-            
-            console.log('=== 智能计算月期望详细信息 ===');
-            console.log(`- 选择阶段: ${stage}阶段`);
-            console.log(`- 日期望值: 普通=${normalDaily}, 双倍=${doubleDaily}`);
-            console.log(`- 天数设置: 普通=${normalDays}天, 双倍=${doubleDays}天`);
-            console.log(`- 计算过程:`);
-            console.log(`  - 普通天数期望值: ${normalDaily} × ${normalDays} = ${normalExpectation.toFixed(2)}`);
-            console.log(`  - 双倍天数期望值: ${doubleDaily} × ${doubleDays} = ${doubleExpectation.toFixed(2)}`);
-            console.log(`  - 月度总期望: ${normalExpectation.toFixed(2)} + ${doubleExpectation.toFixed(2)} = ${monthlyExpectation.toFixed(2)}`);
-            console.log(`- 最终结果: ${monthlyExpectation.toFixed(2)}`);
-            
-            expectationInput.value = monthlyExpectation.toFixed(2);
-            
-            // 自动保存计算结果
-            expectations.monthly = monthlyExpectation;
-            save();
-            updateStats();
-            
-            console.log('智能计算结果已自动保存:', {
-                monthly: monthlyExpectation,
-                daily: monthlyExpectation / 30
-            });
-            
-            // 显示计算结果提示
-            this.textContent = '计算完成并已保存!';
-            this.style.background = 'linear-gradient(45deg, #4caf50, #45a049)';
-            this.style.color = '#fff';
-            setTimeout(() => {
-                this.textContent = '智能计算月期望';
-                this.style.background = 'linear-gradient(45deg, var(--accent), #ff9800)';
-                this.style.color = '#000';
-            }, 2000);
+      calculateBtn.addEventListener('click', function() {
+        console.log('开始智能计算月期望');
+        
+        const doubleDays = +document.getElementById('double-days').value || 0;
+        const normalDays = +document.getElementById('normal-days').value || 0;
+        const stage = document.getElementById('stage-type').value;
+        const expectationInput = document.getElementById('expectation-value');
+        
+        console.log('计算参数:', { doubleDays, normalDays, stage });
+        
+        // 根据阶段获取日期望
+        let normalDaily, doubleDaily;
+        if (STAGE_EXPECTATIONS[stage]) {
+          normalDaily = STAGE_EXPECTATIONS[stage].normal;
+          doubleDaily = STAGE_EXPECTATIONS[stage].double;
+          console.log('使用阶段预设值:', { normalDaily, doubleDaily });
+        } else {
+          normalDaily = expectations.daily || 2.15;
+          doubleDaily = normalDaily * 2;
+          console.log('使用默认设置，日期望值:', { normalDaily, doubleDaily });
+        }
+        
+        // 计算月期望
+        const normalExpectation = normalDaily * normalDays;
+        const doubleExpectation = doubleDaily * doubleDays;
+        const monthlyExpectation = normalExpectation + doubleExpectation;
+        
+        console.log('=== 智能计算月期望详细信息 ===');
+        console.log(`- 选择阶段: ${stage}阶段`);
+        console.log(`- 日期望值: 普通=${normalDaily}, 双倍=${doubleDaily}`);
+        console.log(`- 天数设置: 普通=${normalDays}天, 双倍=${doubleDays}天`);
+        console.log(`- 计算过程:`);
+        console.log(`  - 普通天数期望值: ${normalDaily} × ${normalDays} = ${normalExpectation.toFixed(2)}`);
+        console.log(`  - 双倍天数期望值: ${doubleDaily} × ${doubleDays} = ${doubleExpectation.toFixed(2)}`);
+        console.log(`  - 月度总期望: ${normalExpectation.toFixed(2)} + ${doubleExpectation.toFixed(2)} = ${monthlyExpectation.toFixed(2)}`);
+        
+        expectationInput.value = monthlyExpectation.toFixed(2);
+        
+        // 自动保存计算结果
+        expectations.monthly = monthlyExpectation;
+        save();
+        updateStats();
+        
+        console.log('智能计算结果已自动保存:', {
+          monthly: monthlyExpectation,
+          daily: monthlyExpectation / 30
         });
+        
+        // 显示计算结果提示
+        this.textContent = '计算完成并已保存!';
+        this.style.background = 'linear-gradient(45deg, #4caf50, #45a049)';
+        this.style.color = '#fff';
+        setTimeout(() => {
+          this.textContent = '智能计算月期望';
+          this.style.background = 'linear-gradient(45deg, var(--accent), #ff9800)';
+          this.style.color = '#000';
+        }, 2000);
+      });
     }
 
     // 排序
@@ -424,92 +439,123 @@ function setupDateNavigation() {
     });
 }
 
-// 导入导出功能
+// ==================== 导入导出 ====================
 function setupImportExport() {
-    const exportBtn = document.getElementById('export-data');
-    const importBtn = document.getElementById('import-data');
-    const fileInput = document.getElementById('file-input');
+  const exportBtn = document.getElementById('export-data');
+  const exportCsvBtn = document.getElementById('export-csv-data');
+  const importBtn = document.getElementById('import-data');
+  const fileInput = document.getElementById('file-input');
 
-    // 导出数据
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            const data = {
-                records: materialRecords,
-                expectations: expectations,
-                exportDate: new Date().toISOString(),
-                version: '1.0.0'
-            };
-            
-            const dataStr = JSON.stringify(data, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `nikke-material-data-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            // 显示成功提示
-            showNotification('数据导出成功！', 'success');
-        });
-    }
+  // JSON 导出
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const data = {
+        records: materialRecords,
+        expectations: expectations,
+        exportDate: new Date().toISOString(),
+        version: '1.0.0'
+      };
+      
+      const dataStr = JSON.stringify(data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `nikke-material-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showNotification('数据导出成功！', 'success');
+    });
+  }
 
-    // 导入数据
-    if (importBtn) {
-        importBtn.addEventListener('click', () => {
-            fileInput.click();
-        });
-    }
+  // CSV 导出
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      exportToCSV(materialRecords);
+    });
+  }
 
-    if (fileInput) {
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+  // 导入数据
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+  }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    
-                    // 验证数据格式
-                    if (!data.records || !Array.isArray(data.records)) {
-                        throw new Error('无效的数据格式');
-                    }
-                    
-                    // 备份当前数据
-                    const backupRecords = [...materialRecords];
-                    const backupExpectations = { ...expectations };
-                    
-                    // 导入数据
-                    materialRecords = data.records;
-                    if (data.expectations) {
-                        expectations = data.expectations;
-                    }
-                    
-                    // 保存并更新UI
-                    save();
-                    renderTable();
-                    updateStats();
-                    
-                    // 更新期望设置界面
-                    document.getElementById('expectation-value').value = currentStatsView === 'daily' ? 
-                        expectations.daily : expectations.monthly;
-                    
-                    showNotification('数据导入成功！', 'success');
-                    
-                } catch (error) {
-                    console.error('导入失败:', error);
-                    showNotification('数据导入失败，请检查文件格式！', 'error');
-                }
-            };
-            
-            reader.readAsText(file);
-            e.target.value = ''; // 重置文件输入
-        });
-    }
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          if (!data.records || !Array.isArray(data.records)) {
+            throw new Error('无效的数据格式');
+          }
+          
+          materialRecords = data.records;
+          if (data.expectations) {
+            expectations = data.expectations;
+          }
+          
+          save();
+          renderTable();
+          updateStats();
+          
+          document.getElementById('expectation-value').value = currentStatsView === 'daily' ? 
+            expectations.daily : expectations.monthly;
+          
+          showNotification('数据导入成功！', 'success');
+        } catch (error) {
+          console.error('导入失败:', error);
+          showNotification('数据导入失败，请检查文件格式！', 'error');
+        }
+      };
+      
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+  }
+}
+
+function exportToCSV(records) {
+  const headers = ['日期', '阶段', '第一次', '第二次', '第三次', '零件', '模组总数', '零件换算', '总产出', '期望', '差值'];
+  const csvContent = [
+    headers.join(','),
+    ...records.map(r => [
+      r.date,
+      r.stage || '-',
+      r.m1,
+      r.m2,
+      r.m3,
+      r.parts,
+      r.totalModules,
+      r.partsToMod,
+      r.totalProduction,
+      r.stageExpectation || '-',
+      r.diff
+    ].join(','))
+  ].join('\n');
+  
+  const dataBlob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(dataBlob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `nikke-material-data-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  
+  showNotification('CSV 数据导出成功！', 'success');
 }
 
 // 显示通知
@@ -557,63 +603,55 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// 读取本地数据
+// ==================== 数据管理 ====================
 function loadData() {
-    materialRecords = JSON.parse(localStorage.getItem('nikkeRecords')) || [];
-    expectations = JSON.parse(localStorage.getItem('nikkeExpect')) || { daily: 0, monthly: 0 };
-    document.getElementById('expectation-value').value = expectations.daily;
+  materialRecords = JSON.parse(localStorage.getItem(STORAGE_KEYS.RECORDS)) || [];
+  expectations = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPECTATIONS)) || { daily: 0, monthly: 0 };
+  document.getElementById('expectation-value').value = expectations.daily;
+  
+  const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS)) || {};
+  const doubleDays = document.getElementById('double-days');
+  const normalDays = document.getElementById('normal-days');
+  const stageType = document.getElementById('stage-type');
+  
+  if (doubleDays && savedSettings.doubleDays !== undefined) {
+    doubleDays.value = savedSettings.doubleDays;
+  }
+  
+  if (normalDays && savedSettings.normalDays !== undefined) {
+    normalDays.value = savedSettings.normalDays;
+  }
+  
+  if (stageType && savedSettings.stageType !== undefined) {
+    stageType.value = savedSettings.stageType;
+  }
+  
+  console.log('加载设置:', savedSettings);
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(materialRecords));
+    localStorage.setItem(STORAGE_KEYS.EXPECTATIONS, JSON.stringify(expectations));
+    console.log('保存记录和期望设置成功');
     
-    // 加载双倍天数和普通天数设置
-    const savedSettings = JSON.parse(localStorage.getItem('nikkeSettings')) || {};
     const doubleDays = document.getElementById('double-days');
     const normalDays = document.getElementById('normal-days');
     const stageType = document.getElementById('stage-type');
     
-    if (doubleDays && savedSettings.doubleDays !== undefined) {
-        doubleDays.value = savedSettings.doubleDays;
+    if (doubleDays && normalDays && stageType) {
+      const settings = {
+        doubleDays: doubleDays.value,
+        normalDays: normalDays.value,
+        stageType: stageType.value
+      };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+      console.log('保存高级设置成功:', settings);
     }
-    
-    if (normalDays && savedSettings.normalDays !== undefined) {
-        normalDays.value = savedSettings.normalDays;
-    }
-    
-    if (stageType && savedSettings.stageType !== undefined) {
-        stageType.value = savedSettings.stageType;
-    }
-    
-    console.log('加载设置:', savedSettings);
-}
-
-// 保存数据
-function save() {
-    try {
-        localStorage.setItem('nikkeRecords', JSON.stringify(materialRecords));
-        localStorage.setItem('nikkeExpect', JSON.stringify(expectations));
-        console.log('保存记录和期望设置成功');
-        
-        // 保存双倍天数和普通天数设置
-        const doubleDays = document.getElementById('double-days');
-        const normalDays = document.getElementById('normal-days');
-        const stageType = document.getElementById('stage-type');
-        
-        if (doubleDays && normalDays && stageType) {
-            const settings = {
-                doubleDays: doubleDays.value,
-                normalDays: normalDays.value,
-                stageType: stageType.value
-            };
-            localStorage.setItem('nikkeSettings', JSON.stringify(settings));
-            console.log('保存高级设置成功:', settings);
-        } else {
-            console.warn('无法获取设置元素:', {
-                doubleDays: !!doubleDays,
-                normalDays: !!normalDays,
-                stageType: !!stageType
-            });
-        }
-    } catch (error) {
-        console.error('保存数据失败:', error);
-    }
+  } catch (error) {
+    console.error('保存数据失败:', error);
+    showNotification('保存数据失败，请重试', 'error');
+  }
 }
 
 // 实时保存设置
@@ -664,164 +702,233 @@ function saveSettings() {
     }
 }
 
-// 提交记录
+// ==================== 记录提交与更新 ====================
 materialForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const date = document.getElementById('record-date').value;
-    const m1 = +document.getElementById('modules-1').value || 0;
-    const m2 = +document.getElementById('modules-2').value || 0;
-    const m3 = +document.getElementById('modules-3').value || 0;
-    let parts = +document.getElementById('parts').value || 0;
-    const stage = document.getElementById('parts-stage').value;
+  e.preventDefault();
+  const date = document.getElementById('record-date').value;
+  const m1 = +document.getElementById('modules-1').value || 0;
+  const m2 = +document.getElementById('modules-2').value || 0;
+  const m3 = +document.getElementById('modules-3').value || 0;
+  let parts = +document.getElementById('parts').value || 0;
+  const stage = document.getElementById('parts-stage').value;
 
-    // 仅勾选时零件翻倍，模组不翻倍
-    const isDouble = doublePartsCheck.checked;
-    if (isDouble) parts *= 2;
+  // 输入验证
+  const validationResult = validateRecord({ date, m1, m2, m3, parts, stage });
+  if (!validationResult.isValid) {
+    showNotification(validationResult.errors.join('; '), 'error');
+    return;
+  }
 
-    const totalModules = m1 + m2 + m3;
-    const partsToMod = (parts / 100).toFixed(2);
-    const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
-    
-    // 根据阶段计算期望产出
-    let stageExpectation = expectations.daily; // 默认使用每日设置的期望值
-    
-    if (stage === '5') {
-        stageExpectation = isDouble ? 3.32 : 1.66;
-        console.log('记录5阶段数据，使用5阶段期望值:', stageExpectation);
-    } else if (stage === '6') {
-        stageExpectation = isDouble ? 4.31 : 2.15;
-    } else if (stage === '7') {
-        stageExpectation = isDouble ? 4.56 : 2.28;
+  const isDouble = doublePartsCheck.checked;
+  const finalParts = isDouble ? parts * 2 : parts;
+
+  const totalModules = m1 + m2 + m3;
+  const partsToMod = (finalParts / 100).toFixed(2);
+  const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+  
+  // 根据阶段计算期望产出
+  let stageExpectation = getStageExpectation(stage, isDouble);
+  const diff = (totalModules - stageExpectation).toFixed(2);
+  
+  console.log(`记录处理 - 日期:${date}, 阶段:${stage}, 模组:${totalModules}, 零件:${finalParts}, 差值:${diff}`);
+
+  if (isEditing && editingId) {
+    // 更新现有记录
+    const index = materialRecords.findIndex(r => r.id === editingId);
+    if (index !== -1) {
+      materialRecords[index] = {
+        ...materialRecords[index],
+        date, m1, m2, m3, parts: finalParts, stage, isDouble,
+        totalModules, partsToMod, totalProduction, diff, stageExpectation
+      };
+      showNotification('记录更新成功！', 'success');
     }
-    
-    // 计算差值 - 差值应该不包括零件产出，只基于模组数量
-    const diff = (totalModules - stageExpectation).toFixed(2);
-    
-    // 显示详细的计算日志
-    console.log(`差值计算 - 日期:${date}, 阶段:${stage}, 模组:${totalModules}, 零件:${parts}, 零件换算:${partsToMod}, 总产出:${totalProduction}, 期望:${stageExpectation}, 差值:${diff} (${totalModules} - ${stageExpectation})`);
-
-    // 同日防重复
+    resetForm();
+  } else {
+    // 新增记录
     if (materialRecords.some(i => i.date === date)) {
-        alert('该日期已存在记录');
-        return;
+      showNotification('该日期已存在记录', 'error');
+      return;
     }
 
     materialRecords.push({
-        id: Date.now(), date, m1, m2, m3, parts, stage, isDouble,
-        totalModules, partsToMod, totalProduction, diff, stageExpectation
+      id: Date.now(), date, m1, m2, m3, parts: finalParts, stage, isDouble,
+      totalModules, partsToMod, totalProduction, diff, stageExpectation
     });
-
-    save();
+    
+    showNotification('记录添加成功！', 'success');
     materialForm.reset();
     doublePartsCheck.checked = false;
     document.getElementById('record-date').valueAsDate = new Date();
-    renderTable();
-    updateStats();
+  }
+
+  save();
+  renderTable();
+  updateStats();
 });
+
+// ==================== 记录编辑与渲染 ====================
+function editRecord(id) {
+  const record = materialRecords.find(r => r.id === id);
+  if (!record) return;
+  
+  console.log('开始编辑记录:', record);
+  isEditing = true;
+  editingId = id;
+  
+  document.getElementById('record-date').value = record.date;
+  document.getElementById('modules-1').value = record.m1;
+  document.getElementById('modules-2').value = record.m2;
+  document.getElementById('modules-3').value = record.m3;
+  document.getElementById('parts-stage').value = record.stage;
+  document.getElementById('parts').value = record.parts / (record.isDouble ? 2 : 1);
+  document.getElementById('double-parts-check').checked = record.isDouble;
+  
+  const submitBtn = document.querySelector('.submit-btn');
+  submitBtn.textContent = '更新记录';
+  
+  document.getElementById('record-date').focus();
+  showNotification('已加载记录到表单，修改后点击更新', 'info');
+}
+
+function resetForm() {
+  isEditing = false;
+  editingId = null;
+  
+  materialForm.reset();
+  doublePartsCheck.checked = false;
+  document.getElementById('record-date').valueAsDate = new Date();
+  
+  const submitBtn = document.querySelector('.submit-btn');
+  submitBtn.textContent = '提交记录';
+}
 
 // 渲染表格
 function renderTable() {
-    historyTable.innerHTML = '';
-    if (materialRecords.length === 0) {
-        noRecords.style.display = 'block';
-        return;
+  historyTable.innerHTML = '';
+  if (materialRecords.length === 0) {
+    noRecords.style.display = 'block';
+    return;
+  }
+  noRecords.style.display = 'none';
+
+  let list = [...materialRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (currentSortBy === 'diff') list.sort((a, b) => b.diff - a.diff);
+
+  const thead = historyTable.parentElement.querySelector('thead tr');
+  if (thead) {
+    thead.innerHTML = `
+      <th>日期</th>
+      <th>阶段</th>
+      <th>第一次</th>
+      <th>第二次</th>
+      <th>第三次</th>
+      <th>零件</th>
+      <th>期望产出</th>
+      <th>模组总数</th>
+      <th>零件换算</th>
+      <th>总产出</th>
+      <th>差值</th>
+      <th>操作</th>
+    `;
+  }
+
+  list.forEach(item => {
+    const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
+    const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
+    
+    let expectedValue = item.stageExpectation || 0;
+    
+    if (!expectedValue && item.stage && STAGE_EXPECTATIONS[item.stage]) {
+      expectedValue = item.isDouble ? 
+        STAGE_EXPECTATIONS[item.stage].double : 
+        STAGE_EXPECTATIONS[item.stage].normal;
     }
-    noRecords.style.display = 'none';
-
-    let list = [...materialRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
-    if (currentSortBy === 'diff') list.sort((a, b) => b.diff - a.diff);
-
-    // 更新表头
-    const thead = historyTable.parentElement.querySelector('thead tr');
-    if (thead) {
-        thead.innerHTML = `
-            <th>日期</th>
-            <th>阶段</th>
-            <th>第一次</th>
-            <th>第二次</th>
-            <th>第三次</th>
-            <th>零件</th>
-            <th>期望产出</th>
-            <th>模组总数</th>
-            <th>零件换算</th>
-            <th>总产出</th>
-            <th>差值</th>
-            <th>操作</th>
-        `;
+    
+    if (!expectedValue) {
+      expectedValue = expectations.daily || 2.15;
     }
-
-    list.forEach(item => {
-        // 重新计算总产出量以确保准确性，特别是对旧数据
-        const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
-        const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
-        
-        // 重新计算差值以确保一致性 - 差值应该不包括零件产出，只基于模组数量
-        let expectedValue = item.stageExpectation || 0;
-        
-        // 如果没有stageExpectation，尝试根据阶段和双倍状态重新计算
-        if (!expectedValue && item.stage) {
-            if (item.stage === '5') {
-                expectedValue = item.isDouble ? 3.32 : 1.66;
-            } else if (item.stage === '6') {
-                expectedValue = item.isDouble ? 4.31 : 2.15;
-            } else if (item.stage === '7') {
-                expectedValue = item.isDouble ? 4.56 : 2.28;
-            }
-        }
-        
-        // 如果仍然没有期望值，使用当前设置的日期望值
-        if (!expectedValue) {
-            expectedValue = expectations.daily || 0;
-        }
-        
-        const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
-        
-        // 为所有记录添加详细调试信息，重点关注5月13日和其他可能有问题的记录
-        if (item.date === '2025-05-13' || item.date === '2025-05-03' || item.date === '2025-05-04' || !item.totalDiff) {
-            console.log(`=== ${item.date} 记录详细信息 ===`);
-            console.log(`原始数据:`, JSON.stringify(item, null, 2));
-            console.log(`基本信息:`);
-            console.log(`  - 模组总数: ${item.totalModules} (${item.m1} + ${item.m2} + ${item.m3})`);
-            console.log(`  - 零件数量: ${item.parts} ${item.isDouble ? '(双倍产出)' : ''}`);
-            console.log(`  - 阶段: ${item.stage || '未设置'}`);
-            console.log(`产出计算:`);
-            console.log(`  - 零件换算: ${recalculatedPartsToMod} (${item.parts}/100)`);
-            console.log(`  - 原始总产出: ${item.totalProduction}`);
-            console.log(`  - 重新计算总产出: ${recalculatedProduction} (${item.totalModules} + ${recalculatedPartsToMod})`);
-            console.log(`差值计算:`);
-            console.log(`  - 原始差值: ${item.diff}`);
-            console.log(`  - 总产出差值: ${item.totalDiff}`);
-            console.log(`  - 原始期望产出: ${item.stageExpectation || '未设置'}`);
-            console.log(`  - 重新计算期望产出: ${expectedValue}`);
-            console.log(`  - 重新计算差值: ${recalculatedDiff} (${item.totalModules} - ${expectedValue})`);
-            if (item.date === '2025-05-13') {
-                console.log(`=== 5月13日记录特别分析 ===`);
-                console.log(`  - 是否有stageExpectation: ${item.stageExpectation !== undefined ? '是: ' + item.stageExpectation : '否'}`);
-                console.log(`  - 是否有阶段信息: ${item.stage ? '是: ' + item.stage : '否'}`);
-                console.log(`  - 是否为双倍产出: ${item.isDouble ? '是' : '否'}`);
-                console.log(`  - 期望值计算来源: ${item.stageExpectation !== undefined ? '记录中的stageExpectation' : item.stage ? '根据阶段' + item.stage + '和双倍状态' + (item.isDouble ? '是' : '否') + '计算' : '使用当前日期望值'}`);
-            }
-            console.log(`====================`);
-        }
-        
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${item.date}</td>
-            <td>${item.stage || '-'}</td>
-            <td>${item.m1}</td>
-            <td>${item.m2}</td>
-            <td>${item.m3}</td>
-            <td>${item.parts} ${item.isDouble ? '<span class="double-badge">X2</span>' : ''}</td>
-            <td>${item.stageExpectation || '-'}</td>
-            <td>${item.totalModules}</td>
-            <td>${recalculatedPartsToMod}</td>
-            <td class="production-value">${recalculatedProduction}</td>
-            <td class="${recalculatedDiff >= 0 ? 'difference-positive' : 'difference-negative'}">${recalculatedDiff}</td>
-            <td><button class="delete-btn" onclick="del(${item.id})">删除</button></td>
-        `;
-        historyTable.appendChild(tr);
-    });
+    
+    const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
+    
+    const tr = document.createElement('tr');
+    
+    // 安全创建单元格，防止 XSS
+    const tdDate = document.createElement('td');
+    tdDate.textContent = item.date;
+    
+    const tdStage = document.createElement('td');
+    tdStage.textContent = item.stage || '-';
+    
+    const tdM1 = document.createElement('td');
+    tdM1.textContent = item.m1;
+    
+    const tdM2 = document.createElement('td');
+    tdM2.textContent = item.m2;
+    
+    const tdM3 = document.createElement('td');
+    tdM3.textContent = item.m3;
+    
+    const tdParts = document.createElement('td');
+    tdParts.textContent = item.parts;
+    if (item.isDouble) {
+      const badge = document.createElement('span');
+      badge.className = 'double-badge';
+      badge.textContent = 'X2';
+      tdParts.appendChild(document.createTextNode(' '));
+      tdParts.appendChild(badge);
+    }
+    
+    const tdStageExpectation = document.createElement('td');
+    tdStageExpectation.textContent = item.stageExpectation || '-';
+    
+    const tdTotalModules = document.createElement('td');
+    tdTotalModules.textContent = item.totalModules;
+    
+    const tdPartsToMod = document.createElement('td');
+    tdPartsToMod.textContent = recalculatedPartsToMod;
+    
+    const tdProduction = document.createElement('td');
+    tdProduction.className = 'production-value';
+    tdProduction.textContent = recalculatedProduction;
+    
+    const tdDiff = document.createElement('td');
+    tdDiff.className = parseFloat(recalculatedDiff) >= 0 ? 'difference-positive' : 'difference-negative';
+    tdDiff.textContent = recalculatedDiff;
+    
+    const tdActions = document.createElement('td');
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-btn';
+    editBtn.textContent = '编辑';
+    editBtn.onclick = () => editRecord(item.id);
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = '删除';
+    deleteBtn.onclick = () => del(item.id);
+    
+    tdActions.appendChild(editBtn);
+    tdActions.appendChild(document.createTextNode(' '));
+    tdActions.appendChild(deleteBtn);
+    
+    tr.appendChild(tdDate);
+    tr.appendChild(tdStage);
+    tr.appendChild(tdM1);
+    tr.appendChild(tdM2);
+    tr.appendChild(tdM3);
+    tr.appendChild(tdParts);
+    tr.appendChild(tdStageExpectation);
+    tr.appendChild(tdTotalModules);
+    tr.appendChild(tdPartsToMod);
+    tr.appendChild(tdProduction);
+    tr.appendChild(tdDiff);
+    tr.appendChild(tdActions);
+    
+    historyTable.appendChild(tr);
+  });
 }
+
+
 
 // 删除记录
 window.del = (id) => {
