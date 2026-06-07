@@ -445,7 +445,7 @@ function updateRealTimeCalculation() {
     // 更新显示
     realtimeProductionEl.textContent = totalProduction;
     realtimeDifferenceEl.textContent = difference;
-    realtimeDifferenceEl.className = `stats-value ${parseFloat(difference) >= 0 ? 'difference-positive' : 'difference-negative'}`;
+    realtimeDifferenceEl.className = `realtime-value ${parseFloat(difference) >= 0 ? 'difference-positive' : 'difference-negative'}`;
     
     console.log(`实时预览 - 模组=${totalModules}, 零件=${parts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${expectedForCurrentDay}, 差值=${difference} (${totalModules} - ${expectedForCurrentDay})`);
     
