@@ -199,6 +199,23 @@ document.addEventListener('DOMContentLoaded', () => {
   initCharts();
   renderCharts();
   
+  console.log('5. 初始化默认阶段零件数量...');
+  // 初始化默认阶段的零件数量
+  const partsStage = document.getElementById('parts-stage');
+  if (partsStage && partsStage.value) {
+    const partsInput = document.getElementById('parts');
+    const expectationInput = document.getElementById('expectation-value');
+    const isDouble = doublePartsCheck.checked;
+    const expectationType = document.getElementById('expectation-type').value;
+    
+    if (STAGE_PARTS[partsStage.value]) {
+      partsInput.value = STAGE_PARTS[partsStage.value];
+      const dailyValue = getStageExpectation(partsStage.value, isDouble);
+      expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+      console.log(`已自动填充 ${partsStage.value} 阶段的零件数量: ${STAGE_PARTS[partsStage.value]}`);
+    }
+  }
+  
   console.log('=== 初始化完成 ===');
 });
 
