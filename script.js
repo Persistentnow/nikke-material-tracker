@@ -478,7 +478,7 @@ function setupImportExport() {
         records: materialRecords,
         expectations: expectations,
         exportDate: new Date().toISOString(),
-        version: '1.0.0'
+        version: '2.0.0'
       };
       
       const dataStr = JSON.stringify(data, null, 2);
