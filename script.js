@@ -1,7 +1,16 @@
 // ==================== 常量定义 ====================
 const THEMES = {
   DARK: 'dark',
-  LIGHT: 'light'
+  LIGHT: 'light',
+  NIKKE: 'nikke'
+};
+
+// 筛选状态
+let filterState = {
+  startDate: '',
+  endDate: '',
+  stage: '',
+  search: ''
 };
 
 const STORAGE_KEYS = {
@@ -91,10 +100,6 @@ const realtimeDifferenceEl = document.getElementById('realtime-difference');
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOM loaded, initializing theme system');
   
-  const themeToggleBtn = document.getElementById('theme-toggle-btn');
-  const themeIcon = document.getElementById('theme-icon');
-  const themeText = document.getElementById('theme-text');
-  
   const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
   if (savedTheme) {
     currentTheme = savedTheme;
@@ -103,24 +108,32 @@ document.addEventListener('DOMContentLoaded', function() {
   
   applyTheme(currentTheme);
   
-  themeToggleBtn.addEventListener('click', function() {
-    console.log('Theme toggle button clicked');
-    currentTheme = currentTheme === THEMES.DARK ? THEMES.LIGHT : THEMES.DARK;
-    applyTheme(currentTheme);
-    localStorage.setItem(STORAGE_KEYS.THEME, currentTheme);
+  // 绑定三个主题按钮
+  const themeOptionBtns = document.querySelectorAll('.theme-option-btn');
+  themeOptionBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const newTheme = this.getAttribute('data-theme');
+      console.log('Theme changed to:', newTheme);
+      currentTheme = newTheme;
+      applyTheme(currentTheme);
+      localStorage.setItem(STORAGE_KEYS.THEME, currentTheme);
+    });
   });
   
   function applyTheme(theme) {
     console.log('Applying theme:', theme);
     document.documentElement.setAttribute('data-theme', theme);
     
-    if (theme === THEMES.LIGHT) {
-      themeIcon.textContent = '☀️';
-      themeText.textContent = '浅色模式';
-    } else {
-      themeIcon.textContent = '🌙';
-      themeText.textContent = '深色模式';
-    }
+    // 更新按钮状态
+    const themeOptionBtns = document.querySelectorAll('.theme-option-btn');
+    themeOptionBtns.forEach(btn => {
+      const btnTheme = btn.getAttribute('data-theme');
+      if (btnTheme === theme) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
   }
 });
 
