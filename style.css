@@ -566,3 +566,80 @@ th {
     font-weight: 600;
     color: var(--text);
 }
+
+/* 新增编辑按钮样式 */
+.edit-btn {
+    background: var(--primary);
+    color: white;
+    padding: 4px 8px;
+    font-size: 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: 4px;
+}
+
+.edit-btn:hover {
+    background: var(--primary-light);
+    transform: scale(1.05);
+}
+
+/* 新增 CSV 按钮样式 */
+.csv-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.csv-btn:hover {
+    background: linear-gradient(135deg, #34d399, #10b981);
+}
+
+/* 通知样式 */
+.notification {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    color: white;
+    font-weight: 600;
+    z-index: 1001;
+    box-shadow: 0 8px 24px var(--shadow-color);
+    animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+    background: linear-gradient(135deg, var(--success), #16a34a);
+}
+
+.notification.error {
+    background: linear-gradient(135deg, var(--error), #dc2626);
+}
+
+.notification.info {
+    background: linear-gradient(135deg, var(--info), #2563eb);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+}
+
