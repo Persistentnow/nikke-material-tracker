@@ -1403,3 +1403,544 @@ function renderDistributionChart() {
         }
     });
 }
+
+// ==================== 新增 UI 功能 ====================
+
+// 1. 筛选和搜索功能
+function applyFilters(records) {
+  return records.filter(record => {
+    // 日期范围筛选
+    if (filterState.startDate && record.date < filterState.startDate) {
+      return false;
+    }
+    if (filterState.endDate && record.date > filterState.endDate) {
+      return false;
+    }
+    
+    // 阶段筛选
+    if (filterState.stage && record.stage !== filterState.stage) {
+      return false;
+    }
+    
+    // 搜索筛选
+    if (filterState.search) {
+      const searchTerm = filterState.search.toLowerCase();
+      if (!record.date.toLowerCase().includes(searchTerm) && 
+          !record.stage.toLowerCase().includes(searchTerm) &&
+          !String(record.totalModules).includes(searchTerm)) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+}
+
+// 更新 renderTable 函数以支持筛选
+const originalRenderTable = renderTable;
+renderTable = function() {
+  historyTable.innerHTML = '';
+  
+  // 先应用筛选
+  let filteredRecords = applyFilters(materialRecords);
+  
+  if (filteredRecords.length === 0) {
+    noRecords.style.display = 'block';
+    return;
+  }
+  noRecords.style.display = 'none';
+
+  let list = [...filteredRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (currentSortBy === 'diff') list.sort((a, b) => b.diff - a.diff);
+
+  const thead = historyTable.parentElement.querySelector('thead tr');
+  if (thead) {
+    thead.innerHTML = `
+      <th>日期</th>
+      <th class="mobile-hide">第一次</th>
+      <th class="mobile-hide">第二次</th>
+      <th class="mobile-hide">第三次</th>
+      <th>零件</th>
+      <th>阶段</th>
+      <th>模组总数</th>
+      <th class="mobile-hide">零件换算</th>
+      <th class="mobile-hide">总产出</th>
+      <th>差值</th>
+      <th>操作</th>
+    `;
+  }
+
+  list.forEach(item => {
+    const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
+    const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
+    
+    let expectedValue = item.stageExpectation || 0;
+    
+    if (!expectedValue && item.stage && STAGE_EXPECTATIONS[item.stage]) {
+      expectedValue = item.isDouble ? 
+        STAGE_EXPECTATIONS[item.stage].double : 
+        STAGE_EXPECTATIONS[item.stage].normal;
+    }
+    
+    if (!expectedValue) {
+      expectedValue = expectations.daily || 2.15;
+    }
+    
+    const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
+    
+    const tr = document.createElement('tr');
+    
+    const tdDate = document.createElement('td');
+    tdDate.textContent = item.date;
+    
+    const tdM1 = document.createElement('td');
+    tdM1.className = 'mobile-hide';
+    tdM1.textContent = item.m1;
+    
+    const tdM2 = document.createElement('td');
+    tdM2.className = 'mobile-hide';
+    tdM2.textContent = item.m2;
+    
+    const tdM3 = document.createElement('td');
+    tdM3.className = 'mobile-hide';
+    tdM3.textContent = item.m3;
+    
+    const tdParts = document.createElement('td');
+    tdParts.textContent = item.parts;
+    if (item.isDouble) {
+      const badge = document.createElement('span');
+      badge.className = 'double-badge';
+      badge.textContent = 'X2';
+      tdParts.appendChild(document.createTextNode(' '));
+      tdParts.appendChild(badge);
+    }
+    
+    const tdStage = document.createElement('td');
+    tdStage.textContent = item.stage || '-';
+    
+    const tdTotalModules = document.createElement('td');
+    tdTotalModules.textContent = item.totalModules;
+    
+    const tdPartsToMod = document.createElement('td');
+    tdPartsToMod.className = 'mobile-hide';
+    tdPartsToMod.textContent = recalculatedPartsToMod;
+    
+    const tdProduction = document.createElement('td');
+    tdProduction.className = 'production-value mobile-hide';
+    tdProduction.textContent = recalculatedProduction;
+    
+    const tdDiff = document.createElement('td');
+    tdDiff.className = parseFloat(recalculatedDiff) >= 0 ? 'difference-positive' : 'difference-negative';
+    tdDiff.textContent = recalculatedDiff;
+    
+    const tdActions = document.createElement('td');
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-btn';
+    editBtn.textContent = '编辑';
+    editBtn.onclick = () => editRecord(item.id);
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = '删除';
+    deleteBtn.onclick = () => del(item.id);
+    
+    tdActions.appendChild(editBtn);
+    tdActions.appendChild(document.createTextNode(' '));
+    tdActions.appendChild(deleteBtn);
+    
+    tr.appendChild(tdDate);
+    tr.appendChild(tdM1);
+    tr.appendChild(tdM2);
+    tr.appendChild(tdM3);
+    tr.appendChild(tdParts);
+    tr.appendChild(tdStage);
+    tr.appendChild(tdTotalModules);
+    tr.appendChild(tdPartsToMod);
+    tr.appendChild(tdProduction);
+    tr.appendChild(tdDiff);
+    tr.appendChild(tdActions);
+    
+    historyTable.appendChild(tr);
+  });
+};
+
+// 2. 浮动操作按钮功能
+function initFAB() {
+  const fabMain = document.getElementById('fab-main');
+  const fabExportJson = document.getElementById('fab-export-json');
+  const fabExportCsv = document.getElementById('fab-export-csv');
+  const fabImport = document.getElementById('fab-import');
+  
+  if (fabMain) {
+    fabMain.addEventListener('click', function() {
+      this.classList.toggle('open');
+    });
+  }
+  
+  if (fabExportJson) {
+    fabExportJson.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.getElementById('export-data').click();
+    });
+  }
+  
+  if (fabExportCsv) {
+    fabExportCsv.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.getElementById('export-csv-data').click();
+    });
+  }
+  
+  if (fabImport) {
+    fabImport.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.getElementById('import-data').click();
+    });
+  }
+}
+
+// 3. 键盘快捷键
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', function(e) {
+    // Ctrl+S 保存记录
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const submitBtn = document.querySelector('.submit-btn');
+      if (submitBtn) {
+        submitBtn.click();
+      }
+    }
+    
+    // ESC 重置表单
+    if (e.key === 'Escape') {
+      resetForm();
+    }
+    
+    // 数字键 1-3 快速切换主题
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === '1') {
+        e.preventDefault();
+        applyNewTheme(THEMES.DARK);
+      } else if (e.key === '2') {
+        e.preventDefault();
+        applyNewTheme(THEMES.LIGHT);
+      } else if (e.key === '3') {
+        e.preventDefault();
+        applyNewTheme(THEMES.NIKKE);
+      }
+    }
+  });
+}
+
+function applyNewTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  
+  // 更新按钮状态
+  const themeOptionBtns = document.querySelectorAll('.theme-option-btn');
+  themeOptionBtns.forEach(btn => {
+    const btnTheme = btn.getAttribute('data-theme');
+    if (btnTheme === theme) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  
+  localStorage.setItem(STORAGE_KEYS.THEME, theme);
+  showNotification(`已切换到${theme === 'dark' ? '深色' : theme === 'light' ? '浅色' : 'NIKKE'}主题`, 'info');
+}
+
+// 4. 筛选事件绑定
+function initFilters() {
+  const filterStartDate = document.getElementById('filter-start-date');
+  const filterEndDate = document.getElementById('filter-end-date');
+  const filterStage = document.getElementById('filter-stage');
+  const searchInput = document.getElementById('search-input');
+  
+  if (filterStartDate) {
+    filterStartDate.addEventListener('change', function() {
+      filterState.startDate = this.value;
+      renderTable();
+    });
+  }
+  
+  if (filterEndDate) {
+    filterEndDate.addEventListener('change', function() {
+      filterState.endDate = this.value;
+      renderTable();
+    });
+  }
+  
+  if (filterStage) {
+    filterStage.addEventListener('change', function() {
+      filterState.stage = this.value;
+      renderTable();
+    });
+  }
+  
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      filterState.search = this.value;
+      renderTable();
+    });
+  }
+}
+
+// 5. 增强图表配置
+function enhanceCharts() {
+  // 增强趋势图配置
+  const originalRenderTrendChart = renderTrendChart;
+  renderTrendChart = function() {
+    const canvas = document.getElementById('trendChart');
+    if (!canvas) return;
+    
+    if (trendChart) {
+      trendChart.destroy();
+    }
+    
+    const sortedRecords = [...materialRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const labels = sortedRecords.map(r => r.date);
+    const moduleData = sortedRecords.map(r => r.totalModules);
+    const expectationData = sortedRecords.map(r => r.stageExpectation || expectations.daily);
+    const productionData = sortedRecords.map(r => parseFloat(r.totalProduction));
+    
+    const ctx = canvas.getContext('2d');
+    
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: '模组产出',
+            data: moduleData,
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.15)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          },
+          {
+            label: '期望产出',
+            data: expectationData,
+            borderColor: 'rgb(251, 191, 36)',
+            backgroundColor: 'rgba(251, 191, 36, 0.1)',
+            tension: 0.4,
+            borderDash: [8, 4],
+            fill: false,
+            pointRadius: 3,
+            pointHoverRadius: 5
+          },
+          {
+            label: '总产出（含零件）',
+            data: productionData,
+            borderColor: 'rgb(34, 197, 94)',
+            backgroundColor: 'rgba(34, 197, 94, 0.15)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        animation: {
+          duration: 1000,
+          easing: 'easeInOutQuart'
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: '产出趋势图',
+            font: {
+              size: 18,
+              weight: 'bold'
+            }
+          },
+          legend: {
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              padding: 20
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: {
+              size: 14,
+              weight: 'bold'
+            },
+            bodyFont: {
+              size: 13
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            }
+          },
+          x: {
+            grid: {
+              display: false
+            }
+          }
+        }
+      }
+    });
+  };
+  
+  // 增强分布图配置
+  const originalRenderDistributionChart = renderDistributionChart;
+  renderDistributionChart = function() {
+    const canvas = document.getElementById('distributionChart');
+    if (!canvas) return;
+    
+    if (distributionChart) {
+      distributionChart.destroy();
+    }
+    
+    const stageCounts = { '5': 0, '6': 0, '7': 0 };
+    const stageModuleTotals = { '5': 0, '6': 0, '7': 0 };
+    
+    materialRecords.forEach(r => {
+      if (stageCounts[r.stage] !== undefined) {
+        stageCounts[r.stage]++;
+        stageModuleTotals[r.stage] += r.totalModules;
+      }
+    });
+    
+    const labels = ['5阶段', '6阶段', '7阶段'];
+    const countData = [stageCounts['5'], stageCounts['6'], stageCounts['7']];
+    const moduleData = [stageModuleTotals['5'], stageModuleTotals['6'], stageModuleTotals['7']];
+    
+    const ctx = canvas.getContext('2d');
+    
+    distributionChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: '记录次数',
+            data: countData,
+            backgroundColor: 'rgba(99, 102, 241, 0.85)',
+            borderColor: 'rgba(99, 102, 241, 1)',
+            borderWidth: 2,
+            borderRadius: 6,
+            yAxisID: 'y'
+          },
+          {
+            label: '模组总数',
+            data: moduleData,
+            backgroundColor: 'rgba(236, 72, 153, 0.85)',
+            borderColor: 'rgba(236, 72, 153, 1)',
+            borderWidth: 2,
+            borderRadius: 6,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        animation: {
+          duration: 1000,
+          easing: 'easeInOutQuart'
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: '各阶段产出分布',
+            font: {
+              size: 18,
+              weight: 'bold'
+            }
+          },
+          legend: {
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              padding: 20
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: {
+              size: 14,
+              weight: 'bold'
+            },
+            bodyFont: {
+              size: 13
+            }
+          }
+        },
+        scales: {
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: '记录次数',
+              font: {
+                size: 14,
+                weight: 'bold'
+              }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            },
+            ticks: {
+              precision: 0
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: '模组总数',
+              font: {
+                size: 14,
+                weight: 'bold'
+              }
+            },
+            grid: {
+              drawOnChartArea: false
+            }
+          },
+          x: {
+            grid: {
+              display: false
+            }
+          }
+        }
+      }
+    });
+  };
+}
+
+// 初始化所有新功能
+document.addEventListener('DOMContentLoaded', function() {
+  // 稍延迟以确保 DOM 完全加载
+  setTimeout(() => {
+    initFAB();
+    initKeyboardShortcuts();
+    initFilters();
+    enhanceCharts();
+    console.log('新增 UI 功能初始化完成！');
+  }, 100);
+});
