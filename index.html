@@ -169,6 +169,18 @@
                 </div>
             </section>
 
+            <section class="charts-section">
+                <h2>数据可视化</h2>
+                <div class="charts-controls">
+                    <button id="chart-trend" class="chart-btn active">产出趋势</button>
+                    <button id="chart-distribution" class="chart-btn">产出分布</button>
+                </div>
+                <div class="charts-container">
+                    <canvas id="trendChart"></canvas>
+                    <canvas id="distributionChart" style="display:none;"></canvas>
+                </div>
+            </section>
+
             <section class="history-section">
                 <h2>历史记录</h2>
                 <div class="history-controls">
@@ -207,6 +219,7 @@
             </div>
         </footer>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

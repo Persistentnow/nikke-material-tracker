@@ -643,3 +643,48 @@ th {
     }
 }
 
+/* ==================== 图表区域样式 ==================== */
+.charts-section {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+.charts-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.chart-btn {
+    padding: 8px 16px;
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.chart-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.chart-btn.active {
+    background: var(--primary);
+    color: white;
+}
+
+.charts-container {
+    width: 100%;
+    min-height: 350px;
+}
+
+.charts-container canvas {
+    width: 100% !important;
+    height: auto !important;
+}
+

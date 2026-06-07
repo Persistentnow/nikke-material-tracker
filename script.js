@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('3. 更新界面显示...');
   renderTable();
   updateStats();
+  renderCharts();
   
   console.log('4. 绑定事件处理...');
   bindEvents();
@@ -180,6 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     advancedMonthly.style.display = 'none';
   }
+  
+  console.log('5. 初始化图表...');
+  initCharts();
+  renderCharts();
   
   console.log('=== 初始化完成 ===');
 });
@@ -200,6 +205,8 @@ function bindEvents(){
             expectations[type] = val;
             save();
             updateStats();
+  renderCharts();
+            renderCharts();
             
             console.log('期望设置保存成功:', expectations);
             
@@ -234,6 +241,8 @@ function bindEvents(){
             document.getElementById('expectation-type').value = 'daily';
             document.querySelector('.advanced-monthly').style.display = 'none';
             updateStats();
+  renderCharts();
+            renderCharts();
         };
     }
     
@@ -248,6 +257,8 @@ function bindEvents(){
             // 显示高级设置面板
             document.querySelector('.advanced-monthly').style.display = 'block';
             updateStats();
+  renderCharts();
+            renderCharts();
         };
     }
     
@@ -315,6 +326,7 @@ function bindEvents(){
         expectations.monthly = monthlyExpectation;
         save();
         updateStats();
+  renderCharts();
         
         console.log('智能计算结果已自动保存:', {
           monthly: monthlyExpectation,
@@ -508,6 +520,7 @@ function setupImportExport() {
           save();
           renderTable();
           updateStats();
+  renderCharts();
           
           document.getElementById('expectation-value').value = currentStatsView === 'daily' ? 
             expectations.daily : expectations.monthly;
@@ -765,6 +778,7 @@ materialForm.addEventListener('submit', (e) => {
   save();
   renderTable();
   updateStats();
+  renderCharts();
 });
 
 // ==================== 记录编辑与渲染 ====================
@@ -937,6 +951,7 @@ window.del = (id) => {
     save();
     renderTable();
     updateStats();
+  renderCharts();
 };
 
 // 月度统计显示函数
@@ -1170,4 +1185,208 @@ function updateStats() {
         // 添加月度统计信息到页面
         updateMonthlyStatsDisplay(monthlyData);
     }
+}
+
+// ==================== 图表功能 ====================
+let trendChart = null;
+let distributionChart = null;
+let currentChartView = 'trend';
+
+function initCharts() {
+    const trendBtn = document.getElementById('chart-trend');
+    const distBtn = document.getElementById('chart-distribution');
+    
+    if (trendBtn) {
+        trendBtn.addEventListener('click', () => {
+            switchChart('trend');
+        });
+    }
+    
+    if (distBtn) {
+        distBtn.addEventListener('click', () => {
+            switchChart('distribution');
+        });
+    }
+}
+
+function switchChart(type) {
+    currentChartView = type;
+    const trendBtn = document.getElementById('chart-trend');
+    const distBtn = document.getElementById('chart-distribution');
+    const trendCanvas = document.getElementById('trendChart');
+    const distCanvas = document.getElementById('distributionChart');
+    
+    // 更新按钮状态
+    if (trendBtn) trendBtn.classList.toggle('active', type === 'trend');
+    if (distBtn) distBtn.classList.toggle('active', type === 'distribution');
+    
+    // 切换显示
+    if (trendCanvas) trendCanvas.style.display = type === 'trend' ? 'block' : 'none';
+    if (distCanvas) distCanvas.style.display = type === 'distribution' ? 'block' : 'none';
+    
+    // 渲染图表
+    renderCharts();
+}
+
+function renderCharts() {
+    if (currentChartView === 'trend') {
+        renderTrendChart();
+    } else {
+        renderDistributionChart();
+    }
+}
+
+function renderTrendChart() {
+    const canvas = document.getElementById('trendChart');
+    if (!canvas) return;
+    
+    // 销毁旧图表
+    if (trendChart) {
+        trendChart.destroy();
+    }
+    
+    const sortedRecords = [...materialRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const labels = sortedRecords.map(r => r.date);
+    const moduleData = sortedRecords.map(r => r.totalModules);
+    const expectationData = sortedRecords.map(r => r.stageExpectation || expectations.daily);
+    const productionData = sortedRecords.map(r => parseFloat(r.totalProduction));
+    
+    const ctx = canvas.getContext('2d');
+    
+    trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '模组产出',
+                    data: moduleData,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: '期望产出',
+                    data: expectationData,
+                    borderColor: 'rgb(251, 191, 36)',
+                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                    tension: 0.3,
+                    borderDash: [5, 5],
+                    fill: false
+                },
+                {
+                    label: '总产出（含零件）',
+                    data: productionData,
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '产出趋势图'
+                },
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+function renderDistributionChart() {
+    const canvas = document.getElementById('distributionChart');
+    if (!canvas) return;
+    
+    // 销毁旧图表
+    if (distributionChart) {
+        distributionChart.destroy();
+    }
+    
+    // 按阶段统计
+    const stageCounts = { '5': 0, '6': 0, '7': 0 };
+    const stageModuleTotals = { '5': 0, '6': 0, '7': 0 };
+    
+    materialRecords.forEach(r => {
+        if (stageCounts[r.stage] !== undefined) {
+            stageCounts[r.stage]++;
+            stageModuleTotals[r.stage] += r.totalModules;
+        }
+    });
+    
+    const labels = ['5阶段', '6阶段', '7阶段'];
+    const countData = [stageCounts['5'], stageCounts['6'], stageCounts['7']];
+    const moduleData = [stageModuleTotals['5'], stageModuleTotals['6'], stageModuleTotals['7']];
+    
+    const ctx = canvas.getContext('2d');
+    
+    distributionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '记录次数',
+                    data: countData,
+                    backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                    yAxisID: 'y'
+                },
+                {
+                    label: '模组总数',
+                    data: moduleData,
+                    backgroundColor: 'rgba(236, 72, 153, 0.8)',
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '各阶段产出分布'
+                },
+                legend: {
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: '记录次数'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '模组总数'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                }
+            }
+        }
+    });
 }
