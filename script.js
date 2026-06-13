@@ -2069,13 +2069,14 @@ function initBatchInput() {
 
 /**
  * 安全地将 Date 对象格式化为 YYYY-MM-DD 字符串
- * 使用 UTC 方法确保日期不随时区偏移
+ * 核心原则：始终使用 UTC 方法，避免时区偏移
  */
 function formatDate(date) {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
     return '';
   }
-  // 使用 UTC 方法避免时区问题
+  // 关键：使用 UTC 方法提取年月日
+  // 在东八区，getDate() 可能返回 UTC-8 的日期，而 getUTCDate() 返回正确的 UTC 日期
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');
@@ -2084,38 +2085,77 @@ function formatDate(date) {
 
 /**
  * 安全地将 YYYY-MM-DD 字符串解析为 Date 对象
- * 使用中午12点避免跨时区的日期偏移问题
+ * 只用于需要日期比较的场景（如批量录入的日期范围）
+ * 始终使用 UTC 时间构造，避免时区问题
  */
 function parseDateSafe(dateString) {
   if (!dateString) return null;
   
-  // 如果已经是 Date 对象
+  // 如果已经是 Date 对象 - 使用 UTC 方法重新规范化
   if (dateString instanceof Date) {
-    return dateString;
+    if (!isNaN(dateString.getTime())) {
+      const y = dateString.getUTCFullYear();
+      const m = dateString.getUTCMonth();
+      const d = dateString.getUTCDate();
+      return new Date(Date.UTC(y, m, d, 12, 0, 0));
+    }
+    return null;
   }
   
   const trimmed = String(dateString).trim();
   
-  // 如果是 YYYY-MM-DD 格式，使用显式构造
-  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (match) {
-    const year = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10) - 1; // 月份从0开始
-    const day = parseInt(match[3], 10);
-    // 使用中午12点 UTC 时间，避免任何时区问题
+  // 1. 如果是 YYYY-MM-DD 格式 - 最安全的方式
+  const matchISO = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matchISO) {
+    const year = parseInt(matchISO[1], 10);
+    const month = parseInt(matchISO[2], 10) - 1; // 月份从0开始
+    const day = parseInt(matchISO[3], 10);
+    // 关键：使用 Date.UTC() 而不是 new Date(year, month, day)
+    // 因为后者会使用本地时区
     return new Date(Date.UTC(year, month, day, 12, 0, 0));
   }
   
-  // 其他格式，尝试常规解析
-  const parsed = new Date(trimmed);
-  if (!isNaN(parsed.getTime())) {
-    // 转换为 UTC 中午时间的等价表示
-    const year = parsed.getFullYear();
-    const month = parsed.getMonth();
-    const day = parsed.getDate();
+  // 2. 如果是 YYYY/MM/DD 格式
+  const matchSlash = trimmed.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+  if (matchSlash) {
+    const year = parseInt(matchSlash[1], 10);
+    const month = parseInt(matchSlash[2], 10) - 1;
+    const day = parseInt(matchSlash[3], 10);
     return new Date(Date.UTC(year, month, day, 12, 0, 0));
   }
   
+  // 3. 如果是 M/D/YYYY 格式
+  const matchUS = trimmed.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{4})$/);
+  if (matchUS) {
+    const month = parseInt(matchUS[1], 10) - 1;
+    const day = parseInt(matchUS[2], 10);
+    const year = parseInt(matchUS[3], 10);
+    return new Date(Date.UTC(year, month, day, 12, 0, 0));
+  }
+  
+  // 4. 其他格式 - 谨慎处理，避免使用 new Date(string)
+  // 直接从字符串中提取数字
+  const numbers = trimmed.match(/\d+/g);
+  if (numbers && numbers.length >= 3) {
+    let year, month, day;
+    
+    // 找年份（大于1000的数字）
+    const yearIdx = numbers.findIndex(n => parseInt(n) > 1000);
+    if (yearIdx !== -1) {
+      year = parseInt(numbers[yearIdx], 10);
+      const others = numbers.filter((_, i) => i !== yearIdx).map(n => parseInt(n, 10));
+      if (others.length >= 2) {
+        // 月和日 - 假设较小的是月，较大的是日
+        const min = Math.min(others[0], others[1]);
+        const max = Math.max(others[0], others[1]);
+        month = (min <= 12 ? min : max) - 1;
+        day = min <= 12 ? max : min;
+        return new Date(Date.UTC(year, month, day, 12, 0, 0));
+      }
+    }
+  }
+  
+  // 无法解析
   return null;
 }
 
@@ -2738,12 +2778,16 @@ function exportExcelTemplate() {
 function importExcelData(arrayBuffer) {
   try {
     const data = new Uint8Array(arrayBuffer);
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    // 关键：禁用 cellDates，让我们自己处理日期格式
+    // 避免 SheetJS 使用本地时区创建 Date 对象导致跨日
+    const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: true });
 
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
 
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    // raw: true - 获取单元格的原始值（不格式化）
+    // defval: '' - 空单元格默认值为空字符串
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
 
     if (jsonData.length === 0) {
       showNotification('Excel 文件中没有数据', 'error');
@@ -2776,7 +2820,12 @@ function importExcelData(arrayBuffer) {
           return;
         }
 
+        // 调试：显示原始日期和解析结果
+        console.log(`行 ${rowNum}: 日期原始值 =`, date, `类型 =`, typeof date);
+        
         const dateStr = formatDateValue(date);
+        console.log(`行 ${rowNum}: 解析后日期 = ${dateStr}`);
+        
         if (!dateStr) {
           errorRecords.push({ row: rowNum, error: '日期格式不正确，请使用 YYYY-MM-DD 格式' });
           return;
@@ -2877,60 +2926,112 @@ function importExcelData(arrayBuffer) {
   }
 }
 
-// 格式化日期值 - 确保日期准确性
+// 格式化日期值 - 完全避免时区问题
 function formatDateValue(dateValue) {
   if (!dateValue) return null;
 
   try {
-    // 如果已经是字符串格式
+    // =======================================================
+    // 核心原则：把日期当作纯日历值处理，不做任何时区转换
+    // 目标：输入 "2024-01-15" → 输出 "2024-01-15"
+    // =======================================================
+
+    // 1. 如果已经是 YYYY-MM-DD 格式字符串 - 直接返回！
     if (typeof dateValue === 'string') {
       const trimmed = dateValue.trim();
-      // 检查是否是 YYYY-MM-DD 格式 - 直接返回，不做任何转换
-      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-        return trimmed;
+      
+      // 1.1 完美匹配 YYYY-MM-DD → 直接返回
+      const matchISO = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (matchISO) {
+        return `${matchISO[1]}-${matchISO[2]}-${matchISO[3]}`;
       }
       
-      // 尝试解析其他格式的字符串
-      const parts = extractDateParts(trimmed);
-      if (parts) {
-        return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+      // 1.2 匹配 YYYY/MM/DD 格式（Windows常见）
+      const matchSlash = trimmed.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+      if (matchSlash) {
+        const y = parseInt(matchSlash[1], 10);
+        const m = parseInt(matchSlash[2], 10);
+        const d = parseInt(matchSlash[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       }
       
-      // 其他格式，用安全方式解析
-      const parsedDate = parseDateSafe(trimmed);
-      if (parsedDate) {
-        return formatDate(parsedDate);
+      // 1.3 匹配 YYYY/M/D 格式（Excel常见）
+      const matchShort = trimmed.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+      if (matchShort) {
+        const y = parseInt(matchShort[1], 10);
+        const m = parseInt(matchShort[2], 10);
+        const d = parseInt(matchShort[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       }
+      
+      // 1.4 匹配 M/D/YYYY 格式（美国格式）
+      const matchUS = trimmed.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{4})$/);
+      if (matchUS) {
+        const m = parseInt(matchUS[1], 10);
+        const d = parseInt(matchUS[2], 10);
+        const y = parseInt(matchUS[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      
+      // 1.5 尝试从字符串中提取数字
+      const numbers = trimmed.match(/\d+/g);
+      if (numbers && numbers.length >= 3) {
+        // 尝试各种组合：年-月-日
+        let year, month, day;
+        
+        // 如果有大于1000的数字，应该是年份
+        const yearIdx = numbers.findIndex(n => parseInt(n) > 1000);
+        if (yearIdx !== -1) {
+          year = parseInt(numbers[yearIdx], 10);
+          // 其他两个是月日
+          const others = numbers.filter((_, i) => i !== yearIdx).map(n => parseInt(n, 10));
+          // 假设：较大的（小于13）是月，较小的是日
+          if (others.length >= 2) {
+            // 第一个是月，第二个是日
+            month = Math.min(others[0], others[1]);
+            day = Math.max(others[0], others[1]);
+            if (month <= 12 && day <= 31) {
+              return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+          }
+        }
+      }
+      
+      // 1.6 其他字符串 - 谨慎使用parseDateSafe（仍可能有问题）
+      // 不使用new Date，直接手动解析
       return null;
     }
 
-    // 如果是 Date 对象
+    // 2. 如果是 Date 对象 - 必须使用UTC方法提取
     if (dateValue instanceof Date) {
       if (!isNaN(dateValue.getTime())) {
-        // 确保使用 UTC 方法提取年月日
-        return formatDate(dateValue);
+        // 关键：始终使用UTC方法，避免本地时区
+        const year = dateValue.getUTCFullYear();
+        const month = dateValue.getUTCMonth() + 1;
+        const day = dateValue.getUTCDate();
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       }
       return null;
     }
 
-    // 如果是数字（Excel 日期序列号）
-    if (typeof dateValue === 'number') {
+    // 3. 如果是数字（Excel 日期序列号）
+    // 例如：45321 表示 2024-01-15
+    if (typeof dateValue === 'number' && dateValue > 0 && dateValue < 100000) {
+      // 使用 SheetJS 的解析方法，但用 UTC 方式
       const dateCode = XLSX.SSF.parse_date_code(dateValue);
-      if (dateCode && dateCode.y !== undefined && dateCode.m !== undefined && dateCode.d !== undefined) {
-        // 使用 UTC 方式构造日期，避免本地时区影响
-        const date = new Date(Date.UTC(dateCode.y, dateCode.m - 1, dateCode.d, 12, 0, 0));
-        return formatDate(date);
+      if (dateCode && dateCode.y !== undefined && 
+          dateCode.m !== undefined && 
+          dateCode.d !== undefined) {
+        // 直接从dateCode提取，不创建Date对象
+        const y = dateCode.y;
+        const m = dateCode.m;
+        const d = dateCode.d;
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       }
       return null;
     }
 
-    // 其他情况，尝试转换为字符串再解析
-    const dateStr = String(dateValue);
-    const parsedDate = parseDateSafe(dateStr);
-    if (parsedDate) {
-      return formatDate(parsedDate);
-    }
-
+    // 4. 其他情况
     return null;
   } catch (error) {
     console.error('日期格式化失败:', error);
