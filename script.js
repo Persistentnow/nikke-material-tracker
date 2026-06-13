@@ -629,8 +629,8 @@ function exportToCSV(records) {
   showNotification('CSV 数据导出成功！', 'success');
 }
 
-// 显示通知
-function showNotification(message, type = 'info') {
+// 显示通知（支持HTML内容，例如撤销按钮）
+function showNotification(message, type = 'info', duration = 3000) {
     // 移除现有的通知
     const existingNotification = document.querySelector('.notification');
     if (existingNotification) {
@@ -639,7 +639,10 @@ function showNotification(message, type = 'info') {
     
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
-    notification.textContent = message;
+    
+    // 关键修复：使用 innerHTML 而不是 textContent，
+    // 这样才能正确渲染 HTML 标签（如 <button class="undo-btn">撤销</button>）
+    notification.innerHTML = message;
     
     // 添加样式
     Object.assign(notification.style, {
@@ -653,7 +656,12 @@ function showNotification(message, type = 'info') {
         zIndex: '1000',
         transform: 'translateX(100%)',
         transition: 'transform 0.3s ease',
-        backgroundColor: type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#2196f3'
+        backgroundColor: type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : type === 'warning' ? '#ff9800' : '#2196f3',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        maxWidth: '90vw',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
     });
     
     document.body.appendChild(notification);
@@ -663,15 +671,18 @@ function showNotification(message, type = 'info') {
         notification.style.transform = 'translateX(0)';
     }, 100);
     
-    // 自动隐藏
+    // 自动隐藏（支持自定义时长）
     setTimeout(() => {
+        // 如果通知已被用户点击移除，则不执行动画
+        if (!document.body.contains(notification)) return;
+        
         notification.style.transform = 'translateX(100%)';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
         }, 300);
-    }, 3000);
+    }, duration);
 }
 
 // ==================== 数据管理 ====================
@@ -3089,29 +3100,34 @@ function initBatchSelection() {
 
 /**
  * 更新批量操作控制栏的显示状态
+ * 关键修复：使用 classList.toggle 而不是直接修改 style.display，
+ * 避免触发 CSS 动画反复播放导致的布局抖动
  */
 function updateBatchControls() {
   const batchControls = document.getElementById('batch-controls');
   const selectedCount = document.getElementById('selected-count');
   const selectAllCheckbox = document.getElementById('select-all-checkbox');
-  const mainSelectCheckbox = document.getElementById('main-select-checkbox');
   
-  if (selectedRecordIds.size > 0) {
-    batchControls.style.display = 'flex';
+  if (!batchControls) return;
+  
+  // 使用类名切换显示状态，避免触发动画
+  const isVisible = selectedRecordIds.size > 0;
+  
+  // 避免频繁的DOM操作：只有当状态确实改变时才更新
+  const currentlyVisible = batchControls.classList.contains('visible');
+  if (isVisible !== currentlyVisible) {
+    batchControls.classList.toggle('visible', isVisible);
+  }
+  
+  // 更新选中计数
+  if (selectedCount) {
     selectedCount.textContent = `已选择 ${selectedRecordIds.size} 条记录`;
-    
-    // 检查是否全部选中
-    const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
-    if (selectAllCheckbox) {
-      selectAllCheckbox.checked = selectedRecordIds.size === totalCheckboxes;
-    }
-    if (mainSelectCheckbox) {
-      mainSelectCheckbox.checked = selectedRecordIds.size === totalCheckboxes;
-    }
-  } else {
-    batchControls.style.display = 'none';
-    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-    if (mainSelectCheckbox) mainSelectCheckbox.checked = false;
+  }
+  
+  // 更新全选复选框状态
+  const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
+  if (selectAllCheckbox) {
+    selectAllCheckbox.checked = selectedRecordIds.size === totalCheckboxes && totalCheckboxes > 0;
   }
 }
 
@@ -3257,6 +3273,7 @@ function undoLastBatchDeletion() {
 window.toggleSelectAll = function(checked) {
   const checkboxes = document.querySelectorAll('.record-checkbox');
   
+  // 一次性更新所有状态，避免重复操作
   checkboxes.forEach(checkbox => {
     checkbox.checked = checked;
     const recordId = parseFloat(checkbox.getAttribute('data-id'));
@@ -3267,37 +3284,31 @@ window.toggleSelectAll = function(checked) {
     }
   });
   
-  // 更新表格选中状态
+  // 只调用一次更新
   updateTableSelection();
-  
-  // 更新批量控制栏
   updateBatchControls();
 };
 
 /**
  * 处理单个记录的选择状态变化
+ * 优化：避免不必要的 DOM 操作，减少浏览器重排
  */
 function handleRecordSelection(checkbox) {
   const recordId = parseFloat(checkbox.getAttribute('data-id'));
   
   if (checkbox.checked) {
     selectedRecordIds.add(recordId);
+    // 直接更新表格行的选中状态
+    checkbox.closest('tr').classList.add('selected');
   } else {
     selectedRecordIds.delete(recordId);
+    checkbox.closest('tr').classList.remove('selected');
   }
   
-  // 更新批量控制栏
+  // 更新批量控制栏（只更新计数和全选状态）
   updateBatchControls();
   
-  // 更新表格选中状态
-  updateTableSelection();
-  
-  // 同步更新表头全选框状态
-  const headCheckbox = document.getElementById('head-select-all');
-  const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
-  if (headCheckbox) {
-    headCheckbox.checked = (selectedRecordIds.size === totalCheckboxes && totalCheckboxes > 0);
-  }
+  // 同步更新表头全选框状态（在 updateBatchControls 中处理）
 }
 
 // 在表格渲染完成后，更新批量控制栏和全选状态
@@ -3308,15 +3319,8 @@ renderTable = function() {
   // 高亮已选中的行
   updateTableSelection();
   
-  // 更新批量控制栏
+  // 更新批量控制栏（已经包含全选状态）
   updateBatchControls();
-  
-  // 设置表头全选框的状态
-  const headCheckbox = document.getElementById('head-select-all');
-  const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
-  if (headCheckbox) {
-    headCheckbox.checked = (selectedRecordIds.size === totalCheckboxes && totalCheckboxes > 0);
-  }
 };
 
 // 初始化所有新功能
