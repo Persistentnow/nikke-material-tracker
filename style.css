@@ -795,6 +795,83 @@ kbd {
     margin: 0 2px;
 }
 
+/* ==================== Excel Template Styles ==================== */
+.template-controls {
+    background: var(--bg-light);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.template-controls h3 {
+    color: var(--text);
+    margin-bottom: 16px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.template-controls h3 i {
+    color: #217346;
+}
+
+.template-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.template-btn {
+    background: linear-gradient(135deg, #217346, #1e8449);
+    padding: 12px 24px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.template-btn:hover {
+    background: linear-gradient(135deg, #1e8449, #196f3d);
+    transform: translateY(-2px);
+}
+
+.import-excel-btn {
+    background: linear-gradient(135deg, #0b7d4d, #0a6b3c);
+    padding: 12px 24px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.import-excel-btn:hover {
+    background: linear-gradient(135deg, #0a6b3c, #095230);
+    transform: translateY(-2px);
+}
+
+.template-hint {
+    color: var(--text-muted);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.template-hint i {
+    color: var(--info);
+}
+
+@media (max-width: 768px) {
+    .template-buttons {
+        flex-direction: column;
+    }
+    
+    .template-btn,
+    .import-excel-btn {
+        width: 100%;
+    }
+}
+
 /* ==================== Floating Action Button ==================== */
 .fab-container {
     position: fixed;
