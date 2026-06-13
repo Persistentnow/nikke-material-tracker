@@ -457,26 +457,54 @@ function updateRealTimeCalculation() {
     });
 }
 
-// 日期导航功能
+// 日期导航功能 - 安全处理时区问题
 function setupDateNavigation() {
     const dateInput = document.getElementById('record-date');
     const prevBtn = document.getElementById('prev-day');
     const nextBtn = document.getElementById('next-day');
     
     prevBtn.addEventListener('click', () => {
-        const currentDate = new Date(dateInput.value);
-        currentDate.setDate(currentDate.getDate() - 1);
-        dateInput.valueAsDate = currentDate;
+        // 从输入字符串直接提取年月日，避免时区问题
+        const parts = extractDateParts(dateInput.value);
+        if (parts) {
+            // 使用 UTC 日期计算，避免跨天偏移
+            const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+            currentDate.setUTCDate(currentDate.getUTCDate() - 1);
+            // 设置为本地时间的对应日期
+            const localDate = new Date(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate());
+            dateInput.valueAsDate = localDate;
+        }
     });
     
     nextBtn.addEventListener('click', () => {
-        const currentDate = new Date(dateInput.value);
-        currentDate.setDate(currentDate.getDate() + 1);
-        // 不能选择未来日期
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (currentDate <= today) {
-            dateInput.valueAsDate = currentDate;
+        // 从输入字符串直接提取年月日，避免时区问题
+        const parts = extractDateParts(dateInput.value);
+        if (parts) {
+            // 使用 UTC 日期计算，避免跨天偏移
+            const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+            
+            // 不能选择未来日期（基于本地时间）
+            const today = new Date();
+            const todayParts = {
+                year: today.getFullYear(),
+                month: today.getMonth() + 1,
+                day: today.getDate()
+            };
+            
+            const newYear = currentDate.getUTCFullYear();
+            const newMonth = currentDate.getUTCMonth() + 1;
+            const newDay = currentDate.getUTCDate();
+            
+            // 比较年月日，避免时分秒影响
+            const isFuture = (newYear > todayParts.year) || 
+                             (newYear === todayParts.year && newMonth > todayParts.month) ||
+                             (newYear === todayParts.year && newMonth === todayParts.month && newDay > todayParts.day);
+            
+            if (!isFuture) {
+                const localDate = new Date(newYear, newMonth - 1, newDay);
+                dateInput.valueAsDate = localDate;
+            }
         }
     });
 }
@@ -1960,17 +1988,28 @@ function initBatchInput() {
   const singlePanel = document.querySelector('.single-input-panel');
   const batchPanel = document.querySelector('.batch-input-panel');
 
-  // 初始化日期默认值
-  const today = new Date();
+  // 初始化日期默认值 - 使用本地时间方法
+  const now = new Date();
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth();
+  const todayDay = now.getDate();
+  
+  // 创建今天的 UTC 日期对象
+  const today = new Date(Date.UTC(todayYear, todayMonth, todayDay, 12, 0, 0));
+  
+  // 创建一周前的日期（基于 UTC 日期计算）
   const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
   const batchStartDate = document.getElementById('batch-start-date');
   const batchEndDate = document.getElementById('batch-end-date');
   
   if (batchStartDate) {
     batchStartDate.value = formatDate(lastWeek);
+    console.log('批量录入起始日期:', batchStartDate.value);
   }
   if (batchEndDate) {
     batchEndDate.value = formatDate(today);
+    console.log('批量录入结束日期:', batchEndDate.value);
   }
 
   // 模式切换
@@ -2001,11 +2040,84 @@ function initBatchInput() {
   console.log('批量录入功能初始化完成！');
 }
 
+/**
+ * 安全地将 Date 对象格式化为 YYYY-MM-DD 字符串
+ * 使用 UTC 方法确保日期不随时区偏移
+ */
 function formatDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return '';
+  }
+  // 使用 UTC 方法避免时区问题
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * 安全地将 YYYY-MM-DD 字符串解析为 Date 对象
+ * 使用中午12点避免跨时区的日期偏移问题
+ */
+function parseDateSafe(dateString) {
+  if (!dateString) return null;
+  
+  // 如果已经是 Date 对象
+  if (dateString instanceof Date) {
+    return dateString;
+  }
+  
+  const trimmed = String(dateString).trim();
+  
+  // 如果是 YYYY-MM-DD 格式，使用显式构造
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1; // 月份从0开始
+    const day = parseInt(match[3], 10);
+    // 使用中午12点 UTC 时间，避免任何时区问题
+    return new Date(Date.UTC(year, month, day, 12, 0, 0));
+  }
+  
+  // 其他格式，尝试常规解析
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    // 转换为 UTC 中午时间的等价表示
+    const year = parsed.getFullYear();
+    const month = parsed.getMonth();
+    const day = parsed.getDate();
+    return new Date(Date.UTC(year, month, day, 12, 0, 0));
+  }
+  
+  return null;
+}
+
+/**
+ * 获取今天的日期字符串（YYYY-MM-DD），基于本地时间
+ */
+function getTodayString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 从 YYYY-MM-DD 字符串中提取年月日（无需解析为 Date 对象）
+ */
+function extractDateParts(dateString) {
+  if (!dateString) return null;
+  
+  const match = String(dateString).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return {
+      year: parseInt(match[1], 10),
+      month: parseInt(match[2], 10),
+      day: parseInt(match[3], 10)
+    };
+  }
+  return null;
 }
 
 function bindBatchQuickActions() {
@@ -2043,39 +2155,96 @@ function generateBatchRows() {
     return;
   }
 
-  const startDate = new Date(startDateInput.value);
-  const endDate = new Date(endDateInput.value);
+  // 使用安全的日期解析方法
+  const startDate = parseDateSafe(startDateInput.value);
+  const endDate = parseDateSafe(endDateInput.value);
+
+  if (!startDate || !endDate) {
+    showNotification('日期格式不正确', 'error');
+    return;
+  }
 
   if (startDate > endDate) {
     showNotification('起始日期不能晚于结束日期', 'error');
     return;
   }
 
-  // 生成日期范围内的所有行
+  console.log(`生成批量记录: 从 ${formatDate(startDate)} 到 ${formatDate(endDate)}`);
+
+  // 生成日期范围内的所有行 - 使用字符串直接处理避免时区问题
   batchRows = [];
-  const currentDate = new Date(startDate);
   
-  while (currentDate <= endDate) {
-    const dateStr = formatDate(currentDate);
+  // 从输入字符串直接提取年月日
+  const startParts = extractDateParts(startDateInput.value);
+  const endParts = extractDateParts(endDateInput.value);
+  
+  if (startParts && endParts) {
+    // 更安全的日期生成方式：使用年月日直接生成
+    let currentYear = startParts.year;
+    let currentMonth = startParts.month;
+    let currentDay = startParts.day;
     
-    // 检查该日期是否已经有记录
-    const hasExistingRecord = materialRecords.some(r => r.date === dateStr);
-    
-    if (!hasExistingRecord) {
-      batchRows.push({
-        date: dateStr,
-        stage: defaultStage,
-        m1: 0,
-        m2: 0,
-        m3: 0,
-        parts: STAGE_PARTS[defaultStage] || 0,
-        isDouble: false
-      });
-    } else {
-      console.log(`日期 ${dateStr} 已有记录，跳过`);
+    while (true) {
+      // 构造当前日期字符串
+      const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+      
+      // 检查该日期是否已经有记录
+      const hasExistingRecord = materialRecords.some(r => r.date === dateStr);
+      
+      if (!hasExistingRecord) {
+        batchRows.push({
+          date: dateStr,
+          stage: defaultStage,
+          m1: 0,
+          m2: 0,
+          m3: 0,
+          parts: STAGE_PARTS[defaultStage] || 0,
+          isDouble: false
+        });
+        console.log(`生成记录行: ${dateStr}`);
+      } else {
+        console.log(`日期 ${dateStr} 已有记录，跳过`);
+      }
+      
+      // 检查是否到达结束日期
+      if (currentYear === endParts.year && 
+          currentMonth === endParts.month && 
+          currentDay === endParts.day) {
+        break;
+      }
+      
+      // 增加一天 - 用 Date 对象处理月份年份进位
+      const tempDate = new Date(Date.UTC(currentYear, currentMonth - 1, currentDay, 12, 0, 0));
+      tempDate.setUTCDate(tempDate.getUTCDate() + 1);
+      
+      currentYear = tempDate.getUTCFullYear();
+      currentMonth = tempDate.getUTCMonth() + 1;
+      currentDay = tempDate.getUTCDate();
     }
+  } else {
+    // 如果字符串解析失败，回退到安全解析方式
+    const currentDate = new Date(startDate.getTime());
     
-    currentDate.setDate(currentDate.getDate() + 1);
+    while (currentDate <= endDate) {
+      const dateStr = formatDate(currentDate);
+      
+      const hasExistingRecord = materialRecords.some(r => r.date === dateStr);
+      
+      if (!hasExistingRecord) {
+        batchRows.push({
+          date: dateStr,
+          stage: defaultStage,
+          m1: 0,
+          m2: 0,
+          m3: 0,
+          parts: STAGE_PARTS[defaultStage] || 0,
+          isDouble: false
+        });
+      }
+      
+      // 使用 UTC 日期增加避免时区问题
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
   }
 
   if (batchRows.length === 0) {
@@ -2091,6 +2260,7 @@ function generateBatchRows() {
   }
 
   showNotification(`成功生成 ${batchRows.length} 条记录行`, 'success');
+  console.log(`批量记录生成完成，共 ${batchRows.length} 条`);
 }
 
 function renderBatchTable() {
@@ -2680,7 +2850,7 @@ function importExcelData(arrayBuffer) {
   }
 }
 
-// 格式化日期值
+// 格式化日期值 - 确保日期准确性
 function formatDateValue(dateValue) {
   if (!dateValue) return null;
 
@@ -2688,14 +2858,21 @@ function formatDateValue(dateValue) {
     // 如果已经是字符串格式
     if (typeof dateValue === 'string') {
       const trimmed = dateValue.trim();
-      // 检查是否是 YYYY-MM-DD 格式
+      // 检查是否是 YYYY-MM-DD 格式 - 直接返回，不做任何转换
       if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
         return trimmed;
       }
-      // 尝试解析其他格式
-      const date = new Date(trimmed);
-      if (!isNaN(date.getTime())) {
-        return formatDate(date);
+      
+      // 尝试解析其他格式的字符串
+      const parts = extractDateParts(trimmed);
+      if (parts) {
+        return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+      }
+      
+      // 其他格式，用安全方式解析
+      const parsedDate = parseDateSafe(trimmed);
+      if (parsedDate) {
+        return formatDate(parsedDate);
       }
       return null;
     }
@@ -2703,6 +2880,7 @@ function formatDateValue(dateValue) {
     // 如果是 Date 对象
     if (dateValue instanceof Date) {
       if (!isNaN(dateValue.getTime())) {
+        // 确保使用 UTC 方法提取年月日
         return formatDate(dateValue);
       }
       return null;
@@ -2710,18 +2888,20 @@ function formatDateValue(dateValue) {
 
     // 如果是数字（Excel 日期序列号）
     if (typeof dateValue === 'number') {
-      const date = XLSX.SSF.parse_date_code(dateValue);
-      if (date) {
-        return formatDate(new Date(date.y, date.m - 1, date.d));
+      const dateCode = XLSX.SSF.parse_date_code(dateValue);
+      if (dateCode && dateCode.y !== undefined && dateCode.m !== undefined && dateCode.d !== undefined) {
+        // 使用 UTC 方式构造日期，避免本地时区影响
+        const date = new Date(Date.UTC(dateCode.y, dateCode.m - 1, dateCode.d, 12, 0, 0));
+        return formatDate(date);
       }
       return null;
     }
 
     // 其他情况，尝试转换为字符串再解析
     const dateStr = String(dateValue);
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return formatDate(date);
+    const parsedDate = parseDateSafe(dateStr);
+    if (parsedDate) {
+      return formatDate(parsedDate);
     }
 
     return null;
