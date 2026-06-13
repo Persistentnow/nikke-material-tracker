@@ -947,28 +947,29 @@ kbd {
 .select-column {
     width: 50px;
     text-align: center;
+    min-width: 50px;
 }
 
 .select-column input[type="checkbox"] {
     width: 18px;
     height: 18px;
     cursor: pointer;
-    accent-color: var(--primary);
+    accent-color: #667eea;
 }
 
-.history-table tr {
+table tbody tr {
     transition: background-color 0.2s ease;
 }
 
-.history-table tr.selected {
+table tbody tr.selected {
     background: rgba(102, 126, 234, 0.1) !important;
 }
 
-.history-table tr:hover {
+table tbody tr:hover {
     background: var(--bg-light);
 }
 
-.history-table tr.selected:hover {
+table tbody tr.selected:hover {
     background: rgba(102, 126, 234, 0.15) !important;
 }
 
