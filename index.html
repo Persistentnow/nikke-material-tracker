@@ -417,9 +417,29 @@
                 </div>
                 
                 <div class="table-container">
+                    <div class="batch-controls" id="batch-controls" style="display: none;">
+                        <div class="batch-info">
+                            <label class="select-all-label">
+                                <input type="checkbox" id="select-all-checkbox">
+                                <span>全选</span>
+                            </label>
+                            <span class="selected-count" id="selected-count">已选择 0 条记录</span>
+                        </div>
+                        <div class="batch-actions">
+                            <button type="button" id="batch-delete-btn" class="batch-action-btn danger">
+                                <i class="fas fa-trash-alt"></i> 批量删除
+                            </button>
+                            <button type="button" id="batch-cancel-btn" class="batch-action-btn">
+                                <i class="fas fa-times"></i> 取消选择
+                            </button>
+                        </div>
+                    </div>
                     <table>
                         <thead>
                             <tr>
+                                <th class="select-column">
+                                    <input type="checkbox" id="main-select-checkbox" style="display: none;">
+                                </th>
                                 <th>日期</th>
                                 <th class="mobile-hide">第一次</th>
                                 <th class="mobile-hide">第二次</th>

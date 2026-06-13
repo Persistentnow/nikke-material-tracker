@@ -2911,6 +2911,289 @@ function formatDateValue(dateValue) {
   }
 }
 
+// ==================== 批量选择与删除功能 ====================
+
+// 存储选中的记录ID
+let selectedRecordIds = new Set();
+
+// 撤销栈（存储最近删除的记录，最多支持10条）
+let deletionUndoStack = [];
+
+/**
+ * 初始化批量选择功能
+ */
+function initBatchSelection() {
+  const batchControls = document.getElementById('batch-controls');
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  const batchDeleteBtn = document.getElementById('batch-delete-btn');
+  const batchCancelBtn = document.getElementById('batch-cancel-btn');
+  
+  // 全选复选框事件
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.record-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+        const recordId = parseFloat(checkbox.getAttribute('data-id'));
+        if (this.checked) {
+          selectedRecordIds.add(recordId);
+        } else {
+          selectedRecordIds.delete(recordId);
+        }
+      });
+      updateBatchControls();
+      updateTableSelection();
+    });
+  }
+  
+  // 批量删除按钮事件
+  if (batchDeleteBtn) {
+    batchDeleteBtn.addEventListener('click', batchDeleteRecords);
+  }
+  
+  // 取消选择按钮事件
+  if (batchCancelBtn) {
+    batchCancelBtn.addEventListener('click', cancelSelection);
+  }
+  
+  console.log('批量选择功能初始化完成！');
+}
+
+/**
+ * 更新批量操作控制栏的显示状态
+ */
+function updateBatchControls() {
+  const batchControls = document.getElementById('batch-controls');
+  const selectedCount = document.getElementById('selected-count');
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  const mainSelectCheckbox = document.getElementById('main-select-checkbox');
+  
+  if (selectedRecordIds.size > 0) {
+    batchControls.style.display = 'flex';
+    selectedCount.textContent = `已选择 ${selectedRecordIds.size} 条记录`;
+    
+    // 检查是否全部选中
+    const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = selectedRecordIds.size === totalCheckboxes;
+    }
+    if (mainSelectCheckbox) {
+      mainSelectCheckbox.checked = selectedRecordIds.size === totalCheckboxes;
+    }
+  } else {
+    batchControls.style.display = 'none';
+    if (selectAllCheckbox) selectAllCheckbox.checked = false;
+    if (mainSelectCheckbox) mainSelectCheckbox.checked = false;
+  }
+}
+
+/**
+ * 更新表格中的选中状态（高亮选中的行）
+ */
+function updateTableSelection() {
+  const rows = document.querySelectorAll('#history-table tr');
+  rows.forEach(row => {
+    const checkbox = row.querySelector('.record-checkbox');
+    if (checkbox) {
+      const recordId = parseFloat(checkbox.getAttribute('data-id'));
+      if (selectedRecordIds.has(recordId)) {
+        row.classList.add('selected');
+      } else {
+        row.classList.remove('selected');
+      }
+    }
+  });
+}
+
+/**
+ * 取消所有选择
+ */
+function cancelSelection() {
+  selectedRecordIds.clear();
+  const checkboxes = document.querySelectorAll('.record-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  updateBatchControls();
+  updateTableSelection();
+}
+
+/**
+ * 批量删除选中的记录
+ */
+function batchDeleteRecords() {
+  if (selectedRecordIds.size === 0) {
+    showNotification('请先选择要删除的记录', 'warning');
+    return;
+  }
+  
+  const count = selectedRecordIds.size;
+  const message = count === 1 
+    ? '确定删除这 1 条记录吗？' 
+    : `确定删除这 ${count} 条记录吗？`;
+  
+  if (!confirm(message)) {
+    return;
+  }
+  
+  // 保存到撤销栈
+  const recordsToDelete = [];
+  selectedRecordIds.forEach(id => {
+    const record = materialRecords.find(r => r.id === id);
+    if (record) {
+      recordsToDelete.push({...record}); // 深拷贝
+    }
+  });
+  
+  // 最多保存10条撤销记录
+  deletionUndoStack.push(...recordsToDelete);
+  if (deletionUndoStack.length > 10) {
+    deletionUndoStack = deletionUndoStack.slice(-10);
+  }
+  
+  // 执行删除
+  const originalLength = materialRecords.length;
+  materialRecords = materialRecords.filter(r => !selectedRecordIds.has(r.id));
+  const deletedCount = originalLength - materialRecords.length;
+  
+  if (deletedCount > 0) {
+    // 保存数据
+    save();
+    
+    // 清空选择
+    cancelSelection();
+    
+    // 更新UI
+    renderTable();
+    updateStats();
+    renderCharts();
+    
+    // 显示撤销提示
+    showNotification(
+      `已删除 ${deletedCount} 条记录 <button onclick="undoLastBatchDeletion()" class="undo-btn">撤销</button>`,
+      'success',
+      10000 // 10秒后消失
+    );
+    
+    console.log(`批量删除完成：删除了 ${deletedCount} 条记录`);
+  } else {
+    showNotification('删除失败，未找到匹配的记录', 'error');
+  }
+}
+
+/**
+ * 撤销最后一次批量删除
+ */
+function undoLastBatchDeletion() {
+  if (deletionUndoStack.length === 0) {
+    showNotification('没有可撤销的删除操作', 'info');
+    return;
+  }
+  
+  // 获取最近一次批量删除的记录（栈中的最后N条）
+  const lastBatchSize = Math.min(5, deletionUndoStack.length); // 假设最多一次删5条
+  const recordsToRestore = deletionUndoStack.splice(-lastBatchSize, lastBatchSize);
+  
+  // 恢复记录
+  let restoredCount = 0;
+  recordsToRestore.forEach(deletedRecord => {
+    // 检查是否已存在（可能被重新添加了）
+    const exists = materialRecords.some(r => r.date === deletedRecord.date);
+    if (!exists) {
+      // 生成新的ID
+      deletedRecord.id = Date.now() + Math.random();
+      materialRecords.push(deletedRecord);
+      restoredCount++;
+    }
+  });
+  
+  if (restoredCount > 0) {
+    // 保存数据
+    save();
+    
+    // 更新UI
+    renderTable();
+    updateStats();
+    renderCharts();
+    
+    showNotification(`已撤销删除，成功恢复了 ${restoredCount} 条记录`, 'success');
+    console.log(`撤销删除完成：恢复了 ${restoredCount} 条记录`);
+  } else {
+    showNotification('撤销失败，记录可能已被重新添加', 'warning');
+  }
+}
+
+/**
+ * 处理单个记录的选择状态变化
+ */
+function handleRecordSelection(checkbox) {
+  const recordId = parseFloat(checkbox.getAttribute('data-id'));
+  
+  if (checkbox.checked) {
+    selectedRecordIds.add(recordId);
+  } else {
+    selectedRecordIds.delete(recordId);
+  }
+  
+  updateBatchControls();
+  updateTableSelection();
+}
+
+// 修改 renderTable 函数，在每行添加选择复选框
+const originalRenderTableForSelection = renderTable;
+renderTable = function() {
+  // 调用原始函数
+  originalRenderTableForSelection();
+  
+  // 获取表格行
+  const rows = historyTable.querySelectorAll('tr');
+  
+  // 为每行添加选择功能
+  rows.forEach(row => {
+    // 找到对应的记录（通过日期匹配）
+    const dateCell = row.querySelector('td:nth-child(2)'); // 日期在第2列（选择列之后）
+    if (!dateCell) return;
+    
+    const date = dateCell.textContent;
+    const item = materialRecords.find(r => r.date === date);
+    
+    if (item && !row.querySelector('.record-checkbox')) {
+      // 创建选择列
+      const selectTd = document.createElement('td');
+      selectTd.className = 'select-column';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'record-checkbox';
+      checkbox.setAttribute('data-id', item.id);
+      
+      // 绑定事件
+      checkbox.addEventListener('change', function() {
+        handleRecordSelection(this);
+      });
+      
+      // 如果已经被选中，标记为选中
+      if (selectedRecordIds.has(item.id)) {
+        checkbox.checked = true;
+        row.classList.add('selected');
+      }
+      
+      selectTd.appendChild(checkbox);
+      
+      // 插入到行的第一个位置
+      row.insertBefore(selectTd, row.firstChild);
+    }
+  });
+  
+  // 更新批量控制栏
+  updateBatchControls();
+  
+  // 如果有选中项，确保显示控制栏
+  if (selectedRecordIds.size > 0) {
+    updateBatchControls();
+  }
+};
+
 // 初始化所有新功能
 document.addEventListener('DOMContentLoaded', function() {
   // 稍延迟以确保 DOM 完全加载
@@ -2921,6 +3204,7 @@ document.addEventListener('DOMContentLoaded', function() {
     enhanceCharts();
     initBatchInput();
     initExcelFeatures();
+    initBatchSelection();
     console.log('新增 UI 功能初始化完成！');
   }, 100);
 });
