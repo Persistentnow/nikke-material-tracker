@@ -31,98 +31,203 @@
 
         <main>
             <section class="input-section">
-                <h2><i class="fas fa-edit"></i> 数据录入</h2>
-                <form id="material-form">
-                    <div class="form-group">
-                        <label for="record-date"><i class="fas fa-calendar-alt"></i> 日期</label>
-                        <div class="date-input-group">
-                            <button type="button" id="prev-day" class="date-nav-btn"><i class="fas fa-chevron-left"></i></button>
-                            <input type="date" id="record-date" required>
-                            <button type="button" id="next-day" class="date-nav-btn"><i class="fas fa-chevron-right"></i></button>
-                        </div>
-                    </div>
-                    
-                    <div class="acquisition-grid">
-                        <div class="acquisition-item">
-                            <div class="acquisition-header">
-                                <span class="acquisition-number">1</span>
-                                <span>第一次获取</span>
-                            </div>
-                            <div class="form-group">
-                                <label for="modules-1">定制模组数量</label>
-                                <div class="input-with-icon">
-                                    <i class="fas fa-cube"></i>
-                                    <input type="number" id="modules-1" min="0" value="0" required>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="acquisition-item">
-                            <div class="acquisition-header">
-                                <span class="acquisition-number">2</span>
-                                <span>第二次获取</span>
-                            </div>
-                            <div class="form-group">
-                                <label for="modules-2">定制模组数量</label>
-                                <div class="input-with-icon">
-                                    <i class="fas fa-cube"></i>
-                                    <input type="number" id="modules-2" min="0" value="0" required>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="acquisition-item">
-                            <div class="acquisition-header">
-                                <span class="acquisition-number">3</span>
-                                <span>第三次获取</span>
-                            </div>
-                            <div class="form-group">
-                                <label for="modules-3">定制模组数量</label>
-                                <div class="input-with-icon">
-                                    <i class="fas fa-cube"></i>
-                                    <input type="number" id="modules-3" min="0" value="0" required>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="parts-section">
-                        <h3><i class="fas fa-cog"></i> 定制模组零件</h3>
-                        <div class="parts-grid">
-                            <div class="form-group">
-                                <label for="parts-stage">选择阶段</label>
-                                <div class="select-with-icon">
-                                    <i class="fas fa-layer-group"></i>
-                                    <select id="parts-stage">
-                                        <option value="">请选择阶段</option>
-                                        <option value="5">5阶段 (81零件)</option>
-                                        <option value="6">6阶段 (105零件)</option>
-                                        <option value="7" selected>7阶段 (111零件)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="parts">定制模组零件数量</label>
-                                <div class="input-with-icon">
-                                    <i class="fas fa-puzzle-piece"></i>
-                                    <input type="number" id="parts" min="0" value="0" required>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="double-output-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="double-parts-check">
-                            <span class="checkbox-custom"></span>
-                            <span><i class="fas fa-bolt"></i> 启用双倍产出（仅零件翻倍）</span>
-                        </label>
-                    </div>
-                    
-                    <button type="submit" class="submit-btn">
-                        <i class="fas fa-check-circle"></i> 提交记录
+                <div class="input-mode-tabs">
+                    <button type="button" class="mode-tab active" data-mode="single">
+                        <i class="fas fa-edit"></i> 单条录入
                     </button>
-                </form>
+                    <button type="button" class="mode-tab" data-mode="batch">
+                        <i class="fas fa-list-alt"></i> 批量录入
+                    </button>
+                </div>
+
+                <div class="single-input-panel">
+                    <form id="material-form">
+                        <div class="form-group">
+                            <label for="record-date"><i class="fas fa-calendar-alt"></i> 日期</label>
+                            <div class="date-input-group">
+                                <button type="button" id="prev-day" class="date-nav-btn"><i class="fas fa-chevron-left"></i></button>
+                                <input type="date" id="record-date" required>
+                                <button type="button" id="next-day" class="date-nav-btn"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        
+                        <div class="acquisition-grid">
+                            <div class="acquisition-item">
+                                <div class="acquisition-header">
+                                    <span class="acquisition-number">1</span>
+                                    <span>第一次获取</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="modules-1">定制模组数量</label>
+                                    <div class="input-with-icon">
+                                        <i class="fas fa-cube"></i>
+                                        <input type="number" id="modules-1" min="0" value="0" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="acquisition-item">
+                                <div class="acquisition-header">
+                                    <span class="acquisition-number">2</span>
+                                    <span>第二次获取</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="modules-2">定制模组数量</label>
+                                    <div class="input-with-icon">
+                                        <i class="fas fa-cube"></i>
+                                        <input type="number" id="modules-2" min="0" value="0" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="acquisition-item">
+                                <div class="acquisition-header">
+                                    <span class="acquisition-number">3</span>
+                                    <span>第三次获取</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="modules-3">定制模组数量</label>
+                                    <div class="input-with-icon">
+                                        <i class="fas fa-cube"></i>
+                                        <input type="number" id="modules-3" min="0" value="0" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="parts-section">
+                            <h3><i class="fas fa-cog"></i> 定制模组零件</h3>
+                            <div class="parts-grid">
+                                <div class="form-group">
+                                    <label for="parts-stage">选择阶段</label>
+                                    <div class="select-with-icon">
+                                        <i class="fas fa-layer-group"></i>
+                                        <select id="parts-stage">
+                                            <option value="">请选择阶段</option>
+                                            <option value="5">5阶段 (81零件)</option>
+                                            <option value="6">6阶段 (105零件)</option>
+                                            <option value="7" selected>7阶段 (111零件)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="parts">定制模组零件数量</label>
+                                    <div class="input-with-icon">
+                                        <i class="fas fa-puzzle-piece"></i>
+                                        <input type="number" id="parts" min="0" value="0" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="double-output-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="double-parts-check">
+                                <span class="checkbox-custom"></span>
+                                <span><i class="fas fa-bolt"></i> 启用双倍产出（仅零件翻倍）</span>
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-check-circle"></i> 提交记录
+                        </button>
+                    </form>
+                </div>
+
+                <div class="batch-input-panel" style="display: none;">
+                    <div class="batch-config-section">
+                        <h3><i class="fas fa-sliders-h"></i> 批量配置</h3>
+                        <div class="batch-config-grid">
+                            <div class="form-group">
+                                <label for="batch-start-date"><i class="fas fa-calendar-plus"></i> 起始日期</label>
+                                <input type="date" id="batch-start-date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="batch-end-date"><i class="fas fa-calendar-check"></i> 结束日期</label>
+                                <input type="date" id="batch-end-date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="batch-default-stage"><i class="fas fa-layer-group"></i> 默认阶段</label>
+                                <select id="batch-default-stage">
+                                    <option value="5">5阶段 (81零件)</option>
+                                    <option value="6">6阶段 (105零件)</option>
+                                    <option value="7" selected>7阶段 (111零件)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-tools"></i> 快捷操作</label>
+                                <div class="quick-actions">
+                                    <button type="button" class="quick-btn" id="btn-generate-rows">
+                                        <i class="fas fa-plus-square"></i> 生成日期行
+                                    </button>
+                                    <button type="button" class="quick-btn" id="btn-fill-default-parts">
+                                        <i class="fas fa-puzzle-piece"></i> 填充默认零件
+                                    </button>
+                                    <button type="button" class="quick-btn" id="btn-copy-down-modules">
+                                        <i class="fas fa-copy"></i> 复制模组到所有行
+                                    </button>
+                                    <button type="button" class="quick-btn" id="btn-clear-all">
+                                        <i class="fas fa-eraser"></i> 清空所有
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="batch-table-section">
+                        <h3><i class="fas fa-table"></i> 数据录入表格</h3>
+                        <div class="batch-table-container">
+                            <table class="batch-table">
+                                <thead>
+                                    <tr>
+                                        <th>日期</th>
+                                        <th>阶段</th>
+                                        <th>第一次</th>
+                                        <th>第二次</th>
+                                        <th>第三次</th>
+                                        <th>零件</th>
+                                        <th>双倍</th>
+                                        <th>小计</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="batch-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="batch-empty-hint" id="batch-empty-hint">
+                            <i class="fas fa-info-circle"></i>
+                            <p>请先选择日期范围，然后点击"生成日期行"按钮</p>
+                        </div>
+                    </div>
+
+                    <div class="batch-summary-section">
+                        <div class="batch-summary-grid">
+                            <div class="summary-item">
+                                <span class="summary-label">总记录数</span>
+                                <span class="summary-value" id="batch-summary-count">0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">模组总数</span>
+                                <span class="summary-value" id="batch-summary-modules">0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">零件总数</span>
+                                <span class="summary-value" id="batch-summary-parts">0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">零件换算</span>
+                                <span class="summary-value" id="batch-summary-parts-to-modules">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="batch-actions-section">
+                        <button type="button" class="submit-btn" id="btn-batch-submit">
+                            <i class="fas fa-cloud-upload-alt"></i> 批量提交所有记录
+                        </button>
+                    </div>
+                </div>
             </section>
 
             <section class="settings-section">
