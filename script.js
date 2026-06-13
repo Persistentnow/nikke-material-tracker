@@ -1501,6 +1501,9 @@ renderTable = function() {
   const thead = historyTable.parentElement.querySelector('thead tr');
   if (thead) {
     thead.innerHTML = `
+      <th class="select-column">
+        <input type="checkbox" id="head-select-all" onchange="toggleSelectAll(this.checked)">
+      </th>
       <th>日期</th>
       <th class="mobile-hide">第一次</th>
       <th class="mobile-hide">第二次</th>
@@ -1534,6 +1537,28 @@ renderTable = function() {
     const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
     
     const tr = document.createElement('tr');
+    
+    // 添加选择列（带复选框）
+    const tdSelect = document.createElement('td');
+    tdSelect.className = 'select-column';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'record-checkbox';
+    checkbox.setAttribute('data-id', item.id);
+    
+    // 如果已经被选中，标记为选中
+    if (selectedRecordIds.has(item.id)) {
+      checkbox.checked = true;
+      tr.classList.add('selected');
+    }
+    
+    // 绑定选择事件
+    checkbox.addEventListener('change', function() {
+      handleRecordSelection(this);
+    });
+    
+    tdSelect.appendChild(checkbox);
     
     const tdDate = document.createElement('td');
     tdDate.textContent = item.date;
@@ -1593,6 +1618,8 @@ renderTable = function() {
     tdActions.appendChild(document.createTextNode(' '));
     tdActions.appendChild(deleteBtn);
     
+    // 按正确顺序添加所有列
+    tr.appendChild(tdSelect);
     tr.appendChild(tdDate);
     tr.appendChild(tdM1);
     tr.appendChild(tdM2);
@@ -3124,6 +3151,29 @@ function undoLastBatchDeletion() {
 }
 
 /**
+ * 全选/取消全选功能
+ */
+window.toggleSelectAll = function(checked) {
+  const checkboxes = document.querySelectorAll('.record-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = checked;
+    const recordId = parseFloat(checkbox.getAttribute('data-id'));
+    if (checked) {
+      selectedRecordIds.add(recordId);
+    } else {
+      selectedRecordIds.delete(recordId);
+    }
+  });
+  
+  // 更新表格选中状态
+  updateTableSelection();
+  
+  // 更新批量控制栏
+  updateBatchControls();
+};
+
+/**
  * 处理单个记录的选择状态变化
  */
 function handleRecordSelection(checkbox) {
@@ -3135,62 +3185,36 @@ function handleRecordSelection(checkbox) {
     selectedRecordIds.delete(recordId);
   }
   
+  // 更新批量控制栏
   updateBatchControls();
+  
+  // 更新表格选中状态
   updateTableSelection();
+  
+  // 同步更新表头全选框状态
+  const headCheckbox = document.getElementById('head-select-all');
+  const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
+  if (headCheckbox) {
+    headCheckbox.checked = (selectedRecordIds.size === totalCheckboxes && totalCheckboxes > 0);
+  }
 }
 
-// 修改 renderTable 函数，在每行添加选择复选框
-const originalRenderTableForSelection = renderTable;
+// 在表格渲染完成后，更新批量控制栏和全选状态
+const originalRenderTableForBatch = renderTable;
 renderTable = function() {
-  // 调用原始函数
-  originalRenderTableForSelection();
+  originalRenderTableForBatch();
   
-  // 获取表格行
-  const rows = historyTable.querySelectorAll('tr');
-  
-  // 为每行添加选择功能
-  rows.forEach(row => {
-    // 找到对应的记录（通过日期匹配）
-    const dateCell = row.querySelector('td:nth-child(2)'); // 日期在第2列（选择列之后）
-    if (!dateCell) return;
-    
-    const date = dateCell.textContent;
-    const item = materialRecords.find(r => r.date === date);
-    
-    if (item && !row.querySelector('.record-checkbox')) {
-      // 创建选择列
-      const selectTd = document.createElement('td');
-      selectTd.className = 'select-column';
-      
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className = 'record-checkbox';
-      checkbox.setAttribute('data-id', item.id);
-      
-      // 绑定事件
-      checkbox.addEventListener('change', function() {
-        handleRecordSelection(this);
-      });
-      
-      // 如果已经被选中，标记为选中
-      if (selectedRecordIds.has(item.id)) {
-        checkbox.checked = true;
-        row.classList.add('selected');
-      }
-      
-      selectTd.appendChild(checkbox);
-      
-      // 插入到行的第一个位置
-      row.insertBefore(selectTd, row.firstChild);
-    }
-  });
+  // 高亮已选中的行
+  updateTableSelection();
   
   // 更新批量控制栏
   updateBatchControls();
   
-  // 如果有选中项，确保显示控制栏
-  if (selectedRecordIds.size > 0) {
-    updateBatchControls();
+  // 设置表头全选框的状态
+  const headCheckbox = document.getElementById('head-select-all');
+  const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
+  if (headCheckbox) {
+    headCheckbox.checked = (selectedRecordIds.size === totalCheckboxes && totalCheckboxes > 0);
   }
 };
 
