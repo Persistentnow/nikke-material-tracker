@@ -1950,6 +1950,469 @@ function enhanceCharts() {
   };
 }
 
+// ==================== 批量录入功能 ====================
+
+// 全局状态
+let batchRows = [];
+
+function initBatchInput() {
+  const modeTabs = document.querySelectorAll('.mode-tab');
+  const singlePanel = document.querySelector('.single-input-panel');
+  const batchPanel = document.querySelector('.batch-input-panel');
+
+  // 初始化日期默认值
+  const today = new Date();
+  const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const batchStartDate = document.getElementById('batch-start-date');
+  const batchEndDate = document.getElementById('batch-end-date');
+  
+  if (batchStartDate) {
+    batchStartDate.value = formatDate(lastWeek);
+  }
+  if (batchEndDate) {
+    batchEndDate.value = formatDate(today);
+  }
+
+  // 模式切换
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', function() {
+      const mode = this.getAttribute('data-mode');
+      
+      modeTabs.forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      
+      if (mode === 'single') {
+        singlePanel.style.display = 'block';
+        batchPanel.style.display = 'none';
+      } else {
+        singlePanel.style.display = 'none';
+        batchPanel.style.display = 'block';
+        updateBatchSummary();
+      }
+    });
+  });
+
+  // 绑定快捷操作按钮
+  bindBatchQuickActions();
+
+  // 绑定批量提交按钮
+  bindBatchSubmit();
+
+  console.log('批量录入功能初始化完成！');
+}
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function bindBatchQuickActions() {
+  const generateBtn = document.getElementById('btn-generate-rows');
+  const fillPartsBtn = document.getElementById('btn-fill-default-parts');
+  const copyModulesBtn = document.getElementById('btn-copy-down-modules');
+  const clearBtn = document.getElementById('btn-clear-all');
+
+  if (generateBtn) {
+    generateBtn.addEventListener('click', generateBatchRows);
+  }
+
+  if (fillPartsBtn) {
+    fillPartsBtn.addEventListener('click', fillDefaultParts);
+  }
+
+  if (copyModulesBtn) {
+    copyModulesBtn.addEventListener('click', copyModulesToAll);
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', clearAllBatchRows);
+  }
+}
+
+function generateBatchRows() {
+  const startDateInput = document.getElementById('batch-start-date');
+  const endDateInput = document.getElementById('batch-end-date');
+  const defaultStage = document.getElementById('batch-default-stage').value;
+  const tbody = document.getElementById('batch-table-body');
+  const emptyHint = document.getElementById('batch-empty-hint');
+
+  if (!startDateInput.value || !endDateInput.value) {
+    showNotification('请选择起始和结束日期', 'error');
+    return;
+  }
+
+  const startDate = new Date(startDateInput.value);
+  const endDate = new Date(endDateInput.value);
+
+  if (startDate > endDate) {
+    showNotification('起始日期不能晚于结束日期', 'error');
+    return;
+  }
+
+  // 生成日期范围内的所有行
+  batchRows = [];
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    const dateStr = formatDate(currentDate);
+    
+    // 检查该日期是否已经有记录
+    const hasExistingRecord = materialRecords.some(r => r.date === dateStr);
+    
+    if (!hasExistingRecord) {
+      batchRows.push({
+        date: dateStr,
+        stage: defaultStage,
+        m1: 0,
+        m2: 0,
+        m3: 0,
+        parts: STAGE_PARTS[defaultStage] || 0,
+        isDouble: false
+      });
+    } else {
+      console.log(`日期 ${dateStr} 已有记录，跳过`);
+    }
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  if (batchRows.length === 0) {
+    showNotification('所选日期范围内所有日期都已有记录', 'info');
+    return;
+  }
+
+  renderBatchTable();
+  updateBatchSummary();
+  
+  if (emptyHint) {
+    emptyHint.style.display = batchRows.length === 0 ? 'block' : 'none';
+  }
+
+  showNotification(`成功生成 ${batchRows.length} 条记录行`, 'success');
+}
+
+function renderBatchTable() {
+  const tbody = document.getElementById('batch-table-body');
+  const emptyHint = document.getElementById('batch-empty-hint');
+  
+  if (!tbody) return;
+  
+  tbody.innerHTML = '';
+  
+  if (batchRows.length === 0) {
+    if (emptyHint) {
+      emptyHint.style.display = 'block';
+    }
+    return;
+  }
+
+  if (emptyHint) {
+    emptyHint.style.display = 'none';
+  }
+
+  batchRows.forEach((row, index) => {
+    const tr = document.createElement('tr');
+    
+    // 日期
+    const tdDate = document.createElement('td');
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.value = row.date;
+    dateInput.addEventListener('change', function() {
+      batchRows[index].date = this.value;
+      updateBatchSummary();
+    });
+    tdDate.appendChild(dateInput);
+    
+    // 阶段
+    const tdStage = document.createElement('td');
+    const stageSelect = document.createElement('select');
+    ['5', '6', '7'].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = `${s}阶段`;
+      if (row.stage === s) opt.selected = true;
+      stageSelect.appendChild(opt);
+    });
+    stageSelect.addEventListener('change', function() {
+      batchRows[index].stage = this.value;
+      updateBatchSummary();
+    });
+    tdStage.appendChild(stageSelect);
+    
+    // 第一次获取
+    const tdM1 = document.createElement('td');
+    const m1Input = document.createElement('input');
+    m1Input.type = 'number';
+    m1Input.min = '0';
+    m1Input.value = row.m1;
+    m1Input.addEventListener('input', function() {
+      batchRows[index].m1 = +this.value || 0;
+      updateRowSubtotal(tr, batchRows[index]);
+      updateBatchSummary();
+    });
+    tdM1.appendChild(m1Input);
+    
+    // 第二次获取
+    const tdM2 = document.createElement('td');
+    const m2Input = document.createElement('input');
+    m2Input.type = 'number';
+    m2Input.min = '0';
+    m2Input.value = row.m2;
+    m2Input.addEventListener('input', function() {
+      batchRows[index].m2 = +this.value || 0;
+      updateRowSubtotal(tr, batchRows[index]);
+      updateBatchSummary();
+    });
+    tdM2.appendChild(m2Input);
+    
+    // 第三次获取
+    const tdM3 = document.createElement('td');
+    const m3Input = document.createElement('input');
+    m3Input.type = 'number';
+    m3Input.min = '0';
+    m3Input.value = row.m3;
+    m3Input.addEventListener('input', function() {
+      batchRows[index].m3 = +this.value || 0;
+      updateRowSubtotal(tr, batchRows[index]);
+      updateBatchSummary();
+    });
+    tdM3.appendChild(m3Input);
+    
+    // 零件
+    const tdParts = document.createElement('td');
+    const partsInput = document.createElement('input');
+    partsInput.type = 'number';
+    partsInput.min = '0';
+    partsInput.value = row.parts;
+    partsInput.addEventListener('input', function() {
+      batchRows[index].parts = +this.value || 0;
+      updateBatchSummary();
+    });
+    tdParts.appendChild(partsInput);
+    
+    // 双倍
+    const tdDouble = document.createElement('td');
+    const doubleCheckbox = document.createElement('input');
+    doubleCheckbox.type = 'checkbox';
+    doubleCheckbox.checked = row.isDouble;
+    doubleCheckbox.addEventListener('change', function() {
+      batchRows[index].isDouble = this.checked;
+      updateBatchSummary();
+    });
+    tdDouble.appendChild(doubleCheckbox);
+    
+    // 小计
+    const tdSubtotal = document.createElement('td');
+    tdSubtotal.className = 'batch-subtotal';
+    updateRowSubtotal(tr, row);
+    
+    // 删除按钮
+    const tdDelete = document.createElement('td');
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'batch-row-delete';
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    deleteBtn.addEventListener('click', function() {
+      batchRows.splice(index, 1);
+      renderBatchTable();
+      updateBatchSummary();
+    });
+    tdDelete.appendChild(deleteBtn);
+    
+    tr.appendChild(tdDate);
+    tr.appendChild(tdStage);
+    tr.appendChild(tdM1);
+    tr.appendChild(tdM2);
+    tr.appendChild(tdM3);
+    tr.appendChild(tdParts);
+    tr.appendChild(tdDouble);
+    tr.appendChild(tdSubtotal);
+    tr.appendChild(tdDelete);
+    
+    tbody.appendChild(tr);
+  });
+}
+
+function updateRowSubtotal(tr, row) {
+  const totalModules = row.m1 + row.m2 + row.m3;
+  const partsToMod = (row.parts * (row.isDouble ? 2 : 1) / 100).toFixed(2);
+  const subtotal = document.createElement('span');
+  subtotal.textContent = totalModules;
+  
+  const subtotalTd = tr.querySelectorAll('td')[7];
+  if (subtotalTd) {
+    subtotalTd.innerHTML = '';
+    subtotalTd.appendChild(subtotal);
+  }
+}
+
+function updateBatchSummary() {
+  const summaryCount = document.getElementById('batch-summary-count');
+  const summaryModules = document.getElementById('batch-summary-modules');
+  const summaryParts = document.getElementById('batch-summary-parts');
+  const summaryPartsToModules = document.getElementById('batch-summary-parts-to-modules');
+
+  let totalModules = 0;
+  let totalParts = 0;
+
+  batchRows.forEach(row => {
+    totalModules += row.m1 + row.m2 + row.m3;
+    totalParts += row.parts * (row.isDouble ? 2 : 1);
+  });
+
+  if (summaryCount) summaryCount.textContent = batchRows.length;
+  if (summaryModules) summaryModules.textContent = totalModules;
+  if (summaryParts) summaryParts.textContent = totalParts;
+  if (summaryPartsToModules) summaryPartsToModules.textContent = (totalParts / 100).toFixed(2);
+}
+
+function fillDefaultParts() {
+  const defaultStage = document.getElementById('batch-default-stage').value;
+  const defaultParts = STAGE_PARTS[defaultStage] || 0;
+  
+  batchRows.forEach(row => {
+    row.parts = defaultParts;
+  });
+
+  renderBatchTable();
+  updateBatchSummary();
+  showNotification(`已填充 ${defaultStage}阶段的默认零件数量: ${defaultParts}`, 'success');
+}
+
+function copyModulesToAll() {
+  if (batchRows.length === 0) {
+    showNotification('请先生成记录行', 'error');
+    return;
+  }
+
+  // 使用第一行的模组数量作为模板
+  const template = batchRows[0];
+  
+  if (template.m1 === 0 && template.m2 === 0 && template.m3 === 0) {
+    showNotification('请先在第一行输入模组数量', 'error');
+    return;
+  }
+
+  batchRows.forEach((row, index) => {
+    if (index !== 0) {
+      row.m1 = template.m1;
+      row.m2 = template.m2;
+      row.m3 = template.m3;
+    }
+  });
+
+  renderBatchTable();
+  updateBatchSummary();
+  showNotification('已将第一行的模组数量复制到所有行', 'success');
+}
+
+function clearAllBatchRows() {
+  if (batchRows.length === 0) {
+    showNotification('没有记录需要清空', 'info');
+    return;
+  }
+
+  if (confirm('确定要清空所有记录行吗？')) {
+    batchRows = [];
+    renderBatchTable();
+    updateBatchSummary();
+    showNotification('已清空所有记录行', 'info');
+  }
+}
+
+function bindBatchSubmit() {
+  const submitBtn = document.getElementById('btn-batch-submit');
+  
+  if (submitBtn) {
+    submitBtn.addEventListener('click', function() {
+      if (batchRows.length === 0) {
+        showNotification('没有可提交的记录，请先生成并填写数据', 'error');
+        return;
+      }
+
+      // 验证数据
+      let validCount = 0;
+      let skippedDates = [];
+      const newRecords = [];
+
+      batchRows.forEach(row => {
+        // 检查日期是否重复
+        if (materialRecords.some(r => r.date === row.date)) {
+          skippedDates.push(row.date);
+          return;
+        }
+
+        // 验证必填字段
+        if (!row.date || !row.stage) {
+          return;
+        }
+
+        const finalParts = row.isDouble ? row.parts * 2 : row.parts;
+        const totalModules = row.m1 + row.m2 + row.m3;
+        const partsToMod = (finalParts / 100).toFixed(2);
+        const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+        
+        // 根据阶段计算期望产出
+        const stageExpectation = getStageExpectation(row.stage, row.isDouble);
+        const diff = (totalModules - stageExpectation).toFixed(2);
+
+        newRecords.push({
+          id: Date.now() + Math.random(),
+          date: row.date,
+          m1: row.m1,
+          m2: row.m2,
+          m3: row.m3,
+          parts: finalParts,
+          stage: row.stage,
+          isDouble: row.isDouble,
+          totalModules: totalModules,
+          partsToMod: partsToMod,
+          totalProduction: totalProduction,
+          diff: diff,
+          stageExpectation: stageExpectation
+        });
+
+        validCount++;
+      });
+
+      if (validCount === 0) {
+        showNotification('没有有效的记录可以提交', 'error');
+        return;
+      }
+
+      // 添加新记录到 materialRecords
+      materialRecords.push(...newRecords);
+
+      // 保存
+      save();
+
+      // 更新UI
+      renderTable();
+      updateStats();
+      renderCharts();
+
+      // 清空批量录入表格
+      batchRows = [];
+      renderBatchTable();
+      updateBatchSummary();
+
+      let message = `成功提交 ${validCount} 条记录！`;
+      if (skippedDates.length > 0) {
+        message += ` 跳过 ${skippedDates.length} 条已存在的日期。`;
+      }
+
+      showNotification(message, 'success');
+      console.log('批量提交完成，共添加', validCount, '条新记录');
+      
+      if (skippedDates.length > 0) {
+        console.log('跳过的日期:', skippedDates);
+      }
+    });
+  }
+}
+
 // 初始化所有新功能
 document.addEventListener('DOMContentLoaded', function() {
   // 稍延迟以确保 DOM 完全加载
@@ -1958,6 +2421,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initKeyboardShortcuts();
     initFilters();
     enhanceCharts();
+    initBatchInput();
     console.log('新增 UI 功能初始化完成！');
   }, 100);
 });
