@@ -2413,6 +2413,324 @@ function bindBatchSubmit() {
   }
 }
 
+// ==================== Excel 导入导出功能 ====================
+
+// 初始化 Excel 功能
+function initExcelFeatures() {
+  const exportTemplateBtn = document.getElementById('export-excel-template');
+  const importExcelBtn = document.getElementById('import-excel-data');
+  const excelFileInput = document.getElementById('excel-file-input');
+
+  // 导出 Excel 模板
+  if (exportTemplateBtn) {
+    exportTemplateBtn.addEventListener('click', exportExcelTemplate);
+  }
+
+  // 导入 Excel 数据
+  if (importExcelBtn) {
+    importExcelBtn.addEventListener('click', function() {
+      excelFileInput.click();
+    });
+  }
+
+  // 处理文件选择
+  if (excelFileInput) {
+    excelFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          importExcelData(e.target.result);
+        } catch (error) {
+          console.error('Excel 导入失败:', error);
+          showNotification('Excel 文件导入失败，请检查文件格式是否正确', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      e.target.value = '';
+    });
+  }
+
+  console.log('Excel 功能初始化完成！');
+}
+
+// 导出 Excel 模板
+function exportExcelTemplate() {
+  const templateData = [
+    {
+      '日期': '2024-01-01',
+      '阶段': 7,
+      '第一次获取': 0,
+      '第二次获取': 0,
+      '第三次获取': 0,
+      '零件数量': 111,
+      '是否双倍': '否'
+    },
+    {
+      '日期': '2024-01-02',
+      '阶段': 7,
+      '第一次获取': 1,
+      '第二次获取': 2,
+      '第三次获取': 0,
+      '零件数量': 111,
+      '是否双倍': '是'
+    },
+    {
+      '日期': '2024-01-03',
+      '阶段': 6,
+      '第一次获取': 2,
+      '第二次获取': 1,
+      '第三次获取': 1,
+      '零件数量': 105,
+      '是否双倍': '否'
+    }
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(templateData);
+
+  // 设置列宽
+  ws['!cols'] = [
+    { wch: 12 },  // 日期
+    { wch: 8 },   // 阶段
+    { wch: 10 },  // 第一次获取
+    { wch: 10 },  // 第二次获取
+    { wch: 10 },  // 第三次获取
+    { wch: 10 },  // 零件数量
+    { wch: 10 }   // 是否双倍
+  ];
+
+  // 创建工作簿
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '材料记录模板');
+
+  // 添加使用说明 Sheet
+  const instructions = [
+    { 说明: 'NIKKE材料记录工具 - Excel 导入模板' },
+    { 说明: '' },
+    { 说明: '【填写说明】' },
+    { 说明: '1. 日期：格式为 YYYY-MM-DD，例如 2024-01-01' },
+    { 说明: '2. 阶段：填写 5、6 或 7' },
+    { 说明: '3. 第一次获取 ~ 第三次获取：填写每次获取的模组数量（整数）' },
+    { 说明: '4. 零件数量：该次获取的零件数量（整数）' },
+    {说明: '5. 是否双倍：填写 "是" 或 "否"' },
+    { 说明: '' },
+    { 说明: '【注意事项】' },
+    { 说明: '- 日期列必填，其他列可为空' },
+    { 说明: '- 阶段默认为7阶段（111零件）' },
+    { 说明: '- 零件数量根据阶段自动设置：5阶段=81, 6阶段=105, 7阶段=111' },
+    { 说明: '- "是"表示双倍产出，零件数量会自动翻倍' },
+    { 说明: '- 已有记录的日期会被跳过，不会重复导入' },
+    { 说明: '' },
+    { 说明: '【示例数据】' },
+    { 说明: '请参考第一张工作表中的示例数据' }
+  ];
+
+  const wsInstructions = XLSX.utils.json_to_sheet(instructions);
+  XLSX.utils.book_append_sheet(wb, wsInstructions, '使用说明');
+
+  const fileName = `NIKKE材料记录模板_${formatDate(new Date())}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+
+  showNotification('Excel 模板导出成功！', 'success');
+  console.log('Excel 模板导出完成:', fileName);
+}
+
+// 从 Excel 导入数据
+function importExcelData(arrayBuffer) {
+  try {
+    const data = new Uint8Array(arrayBuffer);
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+    if (jsonData.length === 0) {
+      showNotification('Excel 文件中没有数据', 'error');
+      return;
+    }
+
+    // 解析并验证数据
+    const validRecords = [];
+    const skippedRecords = [];
+    const errorRecords = [];
+
+    jsonData.forEach((row, index) => {
+      const rowNum = index + 2; // Excel 行号（从2开始，因为第1行是表头）
+
+      try {
+        // 提取数据
+        const date = row['日期'];
+        const stage = parseInt(row['阶段']) || 7;
+        const m1 = parseInt(row['第一次获取']) || 0;
+        const m2 = parseInt(row['第二次获取']) || 0;
+        const m3 = parseInt(row['第三次获取']) || 0;
+        const parts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 111;
+        const isDouble = String(row['是否双倍']).trim().toLowerCase() === '是' || 
+                         String(row['是否双倍']).trim() === '1' ||
+                         String(row['是否双倍']).trim().toLowerCase() === 'true';
+
+        // 验证日期格式
+        if (!date) {
+          errorRecords.push({ row: rowNum, error: '日期不能为空' });
+          return;
+        }
+
+        const dateStr = formatDateValue(date);
+        if (!dateStr) {
+          errorRecords.push({ row: rowNum, error: '日期格式不正确，请使用 YYYY-MM-DD 格式' });
+          return;
+        }
+
+        // 检查是否已有记录
+        if (materialRecords.some(r => r.date === dateStr)) {
+          skippedRecords.push({ date: dateStr, reason: '日期已存在' });
+          return;
+        }
+
+        // 计算最终值
+        const finalParts = isDouble ? parts * 2 : parts;
+        const totalModules = m1 + m2 + m3;
+        const partsToMod = (finalParts / 100).toFixed(2);
+        const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+
+        // 根据阶段计算期望产出
+        const stageExpectation = getStageExpectation(stage, isDouble);
+        const diff = (totalModules - stageExpectation).toFixed(2);
+
+        validRecords.push({
+          id: Date.now() + Math.random() + Math.random(),
+          date: dateStr,
+          m1,
+          m2,
+          m3,
+          parts: finalParts,
+          stage,
+          isDouble,
+          totalModules,
+          partsToMod,
+          totalProduction,
+          diff,
+          stageExpectation
+        });
+      } catch (err) {
+        console.error(`处理第 ${rowNum} 行时出错:`, err);
+        errorRecords.push({ row: rowNum, error: err.message });
+      }
+    });
+
+    if (validRecords.length === 0) {
+      let errorMsg = '没有找到有效的记录可以导入';
+      if (errorRecords.length > 0) {
+        errorMsg += `。前 ${Math.min(3, errorRecords.length)} 个错误: ${errorRecords[0].error}`;
+        if (errorRecords.length > 1) {
+          errorMsg += `; ${errorRecords[1].error}`;
+        }
+        if (errorRecords.length > 2) {
+          errorMsg += ` 等共 ${errorRecords.length} 个错误`;
+        }
+      }
+      if (skippedRecords.length > 0) {
+        errorMsg += `。另外有 ${skippedRecords.length} 条记录因日期已存在被跳过`;
+      }
+      showNotification(errorMsg, 'error');
+      console.log('导入结果:', { validRecords, skippedRecords, errorRecords });
+      return;
+    }
+
+    // 添加有效记录
+    materialRecords.push(...validRecords);
+
+    // 保存数据
+    save();
+
+    // 更新 UI
+    renderTable();
+    updateStats();
+    renderCharts();
+
+    // 生成结果消息
+    let message = `成功导入 ${validRecords.length} 条记录！`;
+    if (skippedRecords.length > 0) {
+      message += ` 跳过 ${skippedRecords.length} 条已存在的日期。`;
+    }
+    if (errorRecords.length > 0) {
+      message += ` 有 ${errorRecords.length} 条记录导入失败。`;
+    }
+
+    showNotification(message, 'success');
+
+    console.log('Excel 导入完成:', {
+      成功: validRecords.length,
+      跳过: skippedRecords.length,
+      错误: errorRecords.length,
+      详细: {
+        validRecords,
+        skippedRecords,
+        errorRecords
+      }
+    });
+
+  } catch (error) {
+    console.error('Excel 导入过程出错:', error);
+    showNotification('Excel 文件导入失败：' + error.message, 'error');
+  }
+}
+
+// 格式化日期值
+function formatDateValue(dateValue) {
+  if (!dateValue) return null;
+
+  try {
+    // 如果已经是字符串格式
+    if (typeof dateValue === 'string') {
+      const trimmed = dateValue.trim();
+      // 检查是否是 YYYY-MM-DD 格式
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+      }
+      // 尝试解析其他格式
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        return formatDate(date);
+      }
+      return null;
+    }
+
+    // 如果是 Date 对象
+    if (dateValue instanceof Date) {
+      if (!isNaN(dateValue.getTime())) {
+        return formatDate(dateValue);
+      }
+      return null;
+    }
+
+    // 如果是数字（Excel 日期序列号）
+    if (typeof dateValue === 'number') {
+      const date = XLSX.SSF.parse_date_code(dateValue);
+      if (date) {
+        return formatDate(new Date(date.y, date.m - 1, date.d));
+      }
+      return null;
+    }
+
+    // 其他情况，尝试转换为字符串再解析
+    const dateStr = String(dateValue);
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return formatDate(date);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('日期格式化失败:', error);
+    return null;
+  }
+}
+
 // 初始化所有新功能
 document.addEventListener('DOMContentLoaded', function() {
   // 稍延迟以确保 DOM 完全加载
@@ -2422,6 +2740,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initFilters();
     enhanceCharts();
     initBatchInput();
+    initExcelFeatures();
     console.log('新增 UI 功能初始化完成！');
   }, 100);
 });

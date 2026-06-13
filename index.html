@@ -457,6 +457,23 @@
                 <input type="file" id="file-input" accept=".json" style="display: none;">
             </div>
             
+            <div class="template-controls">
+                <h3><i class="fas fa-file-excel"></i> Excel 模板</h3>
+                <div class="template-buttons">
+                    <button id="export-excel-template" class="action-btn template-btn">
+                        <i class="fas fa-download"></i> 导出 Excel 模板
+                    </button>
+                    <button id="import-excel-data" class="action-btn import-excel-btn">
+                <i class="fas fa-upload"></i> 导入 Excel 数据
+            </button>
+            <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display: none;">
+                </div>
+                <p class="template-hint">
+                    <i class="fas fa-info-circle"></i> 
+                    提示：在 Excel 中填写数据后，选择"导入 Excel 数据"即可批量导入
+                </p>
+            </div>
+            
             <div class="keyboard-hints">
                 <p><i class="fas fa-keyboard"></i> 快捷键提示：<kbd>Ctrl</kbd>+<kbd>S</kbd> 保存</p>
             </div>
@@ -481,6 +498,7 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
