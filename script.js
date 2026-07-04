@@ -47,6 +47,33 @@ function getStageExpectation(stage, isDouble) {
   return expectations ? (isDouble ? expectations.double : expectations.normal) : 0;
 }
 
+// 获取记录的总期望产出（兼容新旧数据格式）
+function getRecordExpectation(record) {
+  if (record.stageExpectation !== undefined && record.stageExpectation !== null) {
+    // 检查是新数据格式还是旧数据格式
+    if (record.stage1 !== undefined) {
+      // 新数据格式，stageExpectation已经是三次之和
+      return record.stageExpectation;
+    } else {
+      // 旧数据格式，stageExpectation是单次的，需要乘以3
+      return record.stageExpectation * 3;
+    }
+  }
+  
+  // 没有保存的期望，根据阶段信息计算
+  if (record.stage1 !== undefined) {
+    // 新数据格式
+    return getStageExpectation(record.stage1, record.isDouble) +
+           getStageExpectation(record.stage2, record.isDouble) +
+           getStageExpectation(record.stage3, record.isDouble);
+  } else if (record.stage && STAGE_EXPECTATIONS[record.stage]) {
+    // 旧数据格式，乘以3
+    return getStageExpectation(record.stage, record.isDouble) * 3;
+  }
+  
+  return expectations.daily || 2.15;
+}
+
 function sanitizeHTML(str) {
   const temp = document.createElement('div');
   temp.textContent = str;
@@ -64,8 +91,8 @@ function validateRecord(data) {
     errors.push('数量不能为负数');
   }
   
-  if (!data.stage) {
-    errors.push('请选择阶段');
+  if (!data.stage1 || !data.stage2 || !data.stage3) {
+    errors.push('请选择所有阶段');
   }
   
   return { isValid: errors.length === 0, errors };
@@ -138,30 +165,32 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==================== 阶段选择 ====================
-document.getElementById('parts-stage').addEventListener('change', function () {
-  const partsInput = document.getElementById('parts');
-  const expectationInput = document.getElementById('expectation-value');
-  const isDouble = doublePartsCheck.checked;
-  const expectationType = document.getElementById('expectation-type').value;
-  
-  if (STAGE_PARTS[this.value]) {
-    partsInput.value = STAGE_PARTS[this.value];
-    const dailyValue = getStageExpectation(this.value, isDouble);
-    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
-  } else {
-    partsInput.value = 0;
+function setupAcquisitionStageEvents() {
+  for (let i = 1; i <= 3; i++) {
+    const stageSelect = document.getElementById(`stage-${i}`);
+    const partsInput = document.getElementById(`parts-${i}`);
+    
+    if (stageSelect && partsInput) {
+      stageSelect.addEventListener('change', function () {
+        if (STAGE_PARTS[this.value]) {
+          partsInput.value = STAGE_PARTS[this.value];
+        }
+        updateRealTimeCalculation();
+      });
+    }
   }
-});
+}
 
 doublePartsCheck.addEventListener('change', function () {
-  const stage = document.getElementById('parts-stage').value;
+  const stage1 = document.getElementById('stage-1')?.value || '7';
   const expectationInput = document.getElementById('expectation-value');
   const expectationType = document.getElementById('expectation-type').value;
   
-  if (STAGE_EXPECTATIONS[stage]) {
-    const dailyValue = getStageExpectation(stage, this.checked);
+  if (STAGE_EXPECTATIONS[stage1]) {
+    const dailyValue = getStageExpectation(stage1, this.checked);
     expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
   }
+  updateRealTimeCalculation();
 });
 
 // ==================== 初始化 ====================
@@ -183,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   console.log('4. 绑定事件处理...');
   bindEvents();
+  setupAcquisitionStageEvents();
   setupRealTimeCalculation();
   setupDateNavigation();
   setupImportExport();
@@ -199,22 +229,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initCharts();
   renderCharts();
   
-  console.log('5. 初始化默认阶段零件数量...');
-  // 初始化默认阶段的零件数量
-  const partsStage = document.getElementById('parts-stage');
-  if (partsStage && partsStage.value) {
-    const partsInput = document.getElementById('parts');
-    const expectationInput = document.getElementById('expectation-value');
-    const isDouble = doublePartsCheck.checked;
-    const expectationType = document.getElementById('expectation-type').value;
-    
-    if (STAGE_PARTS[partsStage.value]) {
-      partsInput.value = STAGE_PARTS[partsStage.value];
-      const dailyValue = getStageExpectation(partsStage.value, isDouble);
-      expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
-      console.log(`已自动填充 ${partsStage.value} 阶段的零件数量: ${STAGE_PARTS[partsStage.value]}`);
-    }
-  }
+  console.log('6. 初始化默认期望产出...');
+  const defaultStage = '7';
+  const isDouble = doublePartsCheck.checked;
+  const expectationInput = document.getElementById('expectation-value');
+  const expectType = document.getElementById('expectation-type').value;
+  const dailyValue = getStageExpectation(defaultStage, isDouble);
+  expectationInput.value = expectType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
   
   console.log('=== 初始化完成 ===');
 });
@@ -392,12 +413,13 @@ function bindEvents(){
 
 // 实时计算功能
 function setupRealTimeCalculation() {
-    const inputs = ['modules-1', 'modules-2', 'modules-3', 'parts', 'parts-stage'];
+    const inputs = ['modules-1', 'modules-2', 'modules-3', 'parts-1', 'parts-2', 'parts-3', 'stage-1', 'stage-2', 'stage-3'];
     
     inputs.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('input', updateRealTimeCalculation);
+            element.addEventListener('change', updateRealTimeCalculation);
         }
     });
     
@@ -417,44 +439,31 @@ function updateRealTimeCalculation() {
     const m1 = +document.getElementById('modules-1').value || 0;
     const m2 = +document.getElementById('modules-2').value || 0;
     const m3 = +document.getElementById('modules-3').value || 0;
-    let parts = +document.getElementById('parts').value || 0;
-    const stage = document.getElementById('parts-stage').value;
     
+    let totalParts = 0;
+    let totalStageExpectation = 0;
     const isDouble = doublePartsCheck.checked;
-    if (isDouble) parts *= 2;
     
-    const totalModules = m1 + m2 + m3;
-    const partsToMod = (parts / 100).toFixed(2);
-    const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
-    
-    // 智能计算期望差值
-    let expectedForCurrentDay = expectations.daily; // 默认使用每日设置的期望值
-    
-    // 如果选择了阶段，使用阶段特定的期望值
-    if (stage === '5') {
-        expectedForCurrentDay = isDouble ? 3.32 : 1.66;
-    } else if (stage === '6') {
-        expectedForCurrentDay = isDouble ? 4.31 : 2.15;
-    } else if (stage === '7') {
-        expectedForCurrentDay = isDouble ? 4.56 : 2.28;
+    for (let i = 1; i <= 3; i++) {
+        const parts = +document.getElementById(`parts-${i}`)?.value || 0;
+        const stage = document.getElementById(`stage-${i}`)?.value || '7';
+        totalParts += isDouble ? parts * 2 : parts;
+        totalStageExpectation += getStageExpectation(stage, isDouble);
     }
     
-    // 差值计算应该只基于模组数量，不包括零件产出
-    const difference = (totalModules - expectedForCurrentDay).toFixed(2);
+    const totalModules = m1 + m2 + m3;
+    const partsToMod = (totalParts / 100).toFixed(2);
+    const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+    
+    // 差值计算基于模组数量，使用三次获取的期望之和
+    const difference = (totalModules - totalStageExpectation).toFixed(2);
     
     // 更新显示
     realtimeProductionEl.textContent = totalProduction;
     realtimeDifferenceEl.textContent = difference;
     realtimeDifferenceEl.className = `realtime-value ${parseFloat(difference) >= 0 ? 'difference-positive' : 'difference-negative'}`;
     
-    console.log(`实时预览 - 模组=${totalModules}, 零件=${parts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${expectedForCurrentDay}, 差值=${difference} (${totalModules} - ${expectedForCurrentDay})`);
-    
-    // 添加视觉反馈
-    const realtimeItems = document.querySelectorAll('.stats-item.real-time-calc');
-    realtimeItems.forEach(item => {
-        item.classList.add('highlight');
-        setTimeout(() => item.classList.remove('highlight'), 300);
-    });
+    console.log(`实时预览 - 模组=${totalModules}, 零件=${totalParts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${totalStageExpectation}, 差值=${difference}`);
 }
 
 // 日期导航功能 - 安全处理时区问题
@@ -597,22 +606,29 @@ function setupImportExport() {
 }
 
 function exportToCSV(records) {
-  const headers = ['日期', '阶段', '第一次', '第二次', '第三次', '零件', '模组总数', '零件换算', '总产出', '期望', '差值'];
+  const headers = ['日期', '阶段1', '阶段2', '阶段3', '第一次', '第二次', '第三次', '零件1', '零件2', '零件3', '总零件', '模组总数', '零件换算', '总产出', '期望', '差值'];
   const csvContent = [
     headers.join(','),
-    ...records.map(r => [
-      r.date,
-      r.stage || '-',
-      r.m1,
-      r.m2,
-      r.m3,
-      r.parts,
-      r.totalModules,
-      r.partsToMod,
-      r.totalProduction,
-      r.stageExpectation || '-',
-      r.diff
-    ].join(','))
+    ...records.map(r => {
+      const s1 = r.stage1 || r.stage || '-';
+      const s2 = r.stage2 || r.stage || '-';
+      const s3 = r.stage3 || r.stage || '-';
+      const p1 = r.parts1 || Math.round(r.parts / 3) || 0;
+      const p2 = r.parts2 || Math.round(r.parts / 3) || 0;
+      const p3 = r.parts3 || Math.round(r.parts / 3) || 0;
+      return [
+        r.date,
+        s1, s2, s3,
+        r.m1, r.m2, r.m3,
+        p1, p2, p3,
+        r.parts,
+        r.totalModules,
+        r.partsToMod,
+        r.totalProduction,
+        r.stageExpectation || '-',
+        r.diff
+      ].join(',');
+    })
   ].join('\n');
   
   const dataBlob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -791,28 +807,48 @@ materialForm.addEventListener('submit', (e) => {
   const m1 = +document.getElementById('modules-1').value || 0;
   const m2 = +document.getElementById('modules-2').value || 0;
   const m3 = +document.getElementById('modules-3').value || 0;
-  let parts = +document.getElementById('parts').value || 0;
-  const stage = document.getElementById('parts-stage').value;
+  
+  const stage1 = document.getElementById('stage-1').value;
+  const stage2 = document.getElementById('stage-2').value;
+  const stage3 = document.getElementById('stage-3').value;
+  const parts1 = +document.getElementById('parts-1').value || 0;
+  const parts2 = +document.getElementById('parts-2').value || 0;
+  const parts3 = +document.getElementById('parts-3').value || 0;
+
+  const isDouble = doublePartsCheck.checked;
+  const finalParts1 = isDouble ? parts1 * 2 : parts1;
+  const finalParts2 = isDouble ? parts2 * 2 : parts2;
+  const finalParts3 = isDouble ? parts3 * 2 : parts3;
+  const totalParts = finalParts1 + finalParts2 + finalParts3;
+
+  // 确定主阶段（如果三个阶段相同则用该阶段，否则标记为mixed）
+  let mainStage = stage1;
+  if (stage1 !== stage2 || stage1 !== stage3) {
+    mainStage = 'mixed';
+  }
+
+  const totalModules = m1 + m2 + m3;
+  const partsToMod = (totalParts / 100).toFixed(2);
+  const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+  
+  // 计算三次获取的期望产出之和
+  let stageExpectation = getStageExpectation(stage1, isDouble) + 
+                          getStageExpectation(stage2, isDouble) + 
+                          getStageExpectation(stage3, isDouble);
+  const diff = (totalModules - stageExpectation).toFixed(2);
+  
+  console.log(`记录处理 - 日期:${date}, 阶段:${stage1}/${stage2}/${stage3}, 模组:${totalModules}, 零件:${totalParts}, 差值:${diff}`);
 
   // 输入验证
-  const validationResult = validateRecord({ date, m1, m2, m3, parts, stage });
+  const validationResult = validateRecord({ 
+    date, m1, m2, m3, 
+    parts: totalParts, 
+    stage1, stage2, stage3 
+  });
   if (!validationResult.isValid) {
     showNotification(validationResult.errors.join('; '), 'error');
     return;
   }
-
-  const isDouble = doublePartsCheck.checked;
-  const finalParts = isDouble ? parts * 2 : parts;
-
-  const totalModules = m1 + m2 + m3;
-  const partsToMod = (finalParts / 100).toFixed(2);
-  const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
-  
-  // 根据阶段计算期望产出
-  let stageExpectation = getStageExpectation(stage, isDouble);
-  const diff = (totalModules - stageExpectation).toFixed(2);
-  
-  console.log(`记录处理 - 日期:${date}, 阶段:${stage}, 模组:${totalModules}, 零件:${finalParts}, 差值:${diff}`);
 
   if (isEditing && editingId) {
     // 更新现有记录
@@ -820,7 +856,10 @@ materialForm.addEventListener('submit', (e) => {
     if (index !== -1) {
       materialRecords[index] = {
         ...materialRecords[index],
-        date, m1, m2, m3, parts: finalParts, stage, isDouble,
+        date, m1, m2, m3, 
+        stage1, stage2, stage3,
+        parts1: finalParts1, parts2: finalParts2, parts3: finalParts3,
+        parts: totalParts, stage: mainStage, isDouble,
         totalModules, partsToMod, totalProduction, diff, stageExpectation
       };
       showNotification('记录更新成功！', 'success');
@@ -834,14 +873,15 @@ materialForm.addEventListener('submit', (e) => {
     }
 
     materialRecords.push({
-      id: Date.now(), date, m1, m2, m3, parts: finalParts, stage, isDouble,
+      id: Date.now(), date, m1, m2, m3, 
+      stage1, stage2, stage3,
+      parts1: finalParts1, parts2: finalParts2, parts3: finalParts3,
+      parts: totalParts, stage: mainStage, isDouble,
       totalModules, partsToMod, totalProduction, diff, stageExpectation
     });
     
     showNotification('记录添加成功！', 'success');
-    materialForm.reset();
-    doublePartsCheck.checked = false;
-    document.getElementById('record-date').valueAsDate = new Date();
+    resetForm();
   }
 
   save();
@@ -863,8 +903,26 @@ function editRecord(id) {
   document.getElementById('modules-1').value = record.m1;
   document.getElementById('modules-2').value = record.m2;
   document.getElementById('modules-3').value = record.m3;
-  document.getElementById('parts-stage').value = record.stage;
-  document.getElementById('parts').value = record.parts / (record.isDouble ? 2 : 1);
+  
+  // 兼容旧数据格式
+  if (record.stage1 !== undefined) {
+    document.getElementById('stage-1').value = record.stage1;
+    document.getElementById('stage-2').value = record.stage2;
+    document.getElementById('stage-3').value = record.stage3;
+    document.getElementById('parts-1').value = record.parts1 / (record.isDouble ? 2 : 1);
+    document.getElementById('parts-2').value = record.parts2 / (record.isDouble ? 2 : 1);
+    document.getElementById('parts-3').value = record.parts3 / (record.isDouble ? 2 : 1);
+  } else {
+    // 旧数据格式，填充相同的阶段和零件
+    document.getElementById('stage-1').value = record.stage || '7';
+    document.getElementById('stage-2').value = record.stage || '7';
+    document.getElementById('stage-3').value = record.stage || '7';
+    const avgParts = Math.round((record.parts / (record.isDouble ? 2 : 1)) / 3);
+    document.getElementById('parts-1').value = avgParts;
+    document.getElementById('parts-2').value = avgParts;
+    document.getElementById('parts-3').value = avgParts;
+  }
+  
   document.getElementById('double-parts-check').checked = record.isDouble;
   
   const submitBtn = document.querySelector('.submit-btn');
@@ -872,6 +930,7 @@ function editRecord(id) {
   
   document.getElementById('record-date').focus();
   showNotification('已加载记录到表单，修改后点击更新', 'info');
+  updateRealTimeCalculation();
 }
 
 function resetForm() {
@@ -882,8 +941,15 @@ function resetForm() {
   doublePartsCheck.checked = false;
   document.getElementById('record-date').valueAsDate = new Date();
   
+  // 重置为默认7阶段和111零件
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`stage-${i}`).value = '7';
+    document.getElementById(`parts-${i}`).value = STAGE_PARTS['7'];
+  }
+  
   const submitBtn = document.querySelector('.submit-btn');
   submitBtn.textContent = '提交记录';
+  updateRealTimeCalculation();
 }
 
 // 渲染表格
@@ -903,14 +969,14 @@ function renderTable() {
     thead.innerHTML = `
       <th>日期</th>
       <th>阶段</th>
-      <th>第一次</th>
-      <th>第二次</th>
-      <th>第三次</th>
+      <th class="mobile-hide">第一次</th>
+      <th class="mobile-hide">第二次</th>
+      <th class="mobile-hide">第三次</th>
       <th>零件</th>
-      <th>期望产出</th>
+      <th class="mobile-hide">期望产出</th>
       <th>模组总数</th>
-      <th>零件换算</th>
-      <th>总产出</th>
+      <th class="mobile-hide">零件换算</th>
+      <th class="mobile-hide">总产出</th>
       <th>差值</th>
       <th>操作</th>
     `;
@@ -920,19 +986,16 @@ function renderTable() {
     const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
     const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
     
-    let expectedValue = item.stageExpectation || 0;
-    
-    if (!expectedValue && item.stage && STAGE_EXPECTATIONS[item.stage]) {
-      expectedValue = item.isDouble ? 
-        STAGE_EXPECTATIONS[item.stage].double : 
-        STAGE_EXPECTATIONS[item.stage].normal;
-    }
-    
-    if (!expectedValue) {
-      expectedValue = expectations.daily || 2.15;
-    }
-    
+    const expectedValue = getRecordExpectation(item);
     const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
+    
+    // 构建阶段显示文本
+    let stageDisplay = '';
+    if (item.stage1 !== undefined) {
+      stageDisplay = `${item.stage1}/${item.stage2}/${item.stage3}`;
+    } else {
+      stageDisplay = item.stage || '-';
+    }
     
     const tr = document.createElement('tr');
     
@@ -941,15 +1004,18 @@ function renderTable() {
     tdDate.textContent = item.date;
     
     const tdStage = document.createElement('td');
-    tdStage.textContent = item.stage || '-';
+    tdStage.textContent = stageDisplay;
     
     const tdM1 = document.createElement('td');
+    tdM1.className = 'mobile-hide';
     tdM1.textContent = item.m1;
     
     const tdM2 = document.createElement('td');
+    tdM2.className = 'mobile-hide';
     tdM2.textContent = item.m2;
     
     const tdM3 = document.createElement('td');
+    tdM3.className = 'mobile-hide';
     tdM3.textContent = item.m3;
     
     const tdParts = document.createElement('td');
@@ -963,16 +1029,18 @@ function renderTable() {
     }
     
     const tdStageExpectation = document.createElement('td');
+    tdStageExpectation.className = 'mobile-hide';
     tdStageExpectation.textContent = item.stageExpectation || '-';
     
     const tdTotalModules = document.createElement('td');
     tdTotalModules.textContent = item.totalModules;
     
     const tdPartsToMod = document.createElement('td');
+    tdPartsToMod.className = 'mobile-hide';
     tdPartsToMod.textContent = recalculatedPartsToMod;
     
     const tdProduction = document.createElement('td');
-    tdProduction.className = 'production-value';
+    tdProduction.className = 'production-value mobile-hide';
     tdProduction.textContent = recalculatedProduction;
     
     const tdDiff = document.createElement('td');
@@ -1044,24 +1112,7 @@ function updateMonthlyStatsDisplay(monthlyData) {
         // 重新计算月度期望产出 - 始终使用每条记录自身保存的期望，确保历史数据稳定性
         let monthExpected = 0;
         month.records.forEach(record => {
-            // 优先使用记录自身保存的stageExpectation
-            let recordExpectation = 0;
-            if (record.stageExpectation !== undefined && record.stageExpectation !== null) {
-                recordExpectation = record.stageExpectation;
-            } else if (record.stage) {
-                // 如果记录中没有保存，但有阶段信息，根据阶段和双倍状态重新计算
-                if (record.stage === '5') {
-                    recordExpectation = record.isDouble ? 3.32 : 1.66;
-                } else if (record.stage === '6') {
-                    recordExpectation = record.isDouble ? 4.31 : 2.15;
-                } else if (record.stage === '7') {
-                    recordExpectation = record.isDouble ? 4.56 : 2.28;
-                }
-            } else {
-                // 如果以上都没有，使用记录创建时的日期望（这里无法获取，所以使用阶段默认值）
-                recordExpectation = 2.15; // 默认使用6阶段普通日的期望值
-            }
-            monthExpected += recordExpectation;
+            monthExpected += getRecordExpectation(record);
         });
         
         console.log(`月度详细统计 - ${month.monthName}:`);
@@ -1129,9 +1180,9 @@ function updateStats() {
         // 重新计算期望产出总量 - 基于每条记录的实际期望产出值相加
         let expectTotal = 0;
         materialRecords.forEach(i => {
-            const recordExpectation = i.stageExpectation || expectations.daily;
+            const recordExpectation = getRecordExpectation(i);
             expectTotal += recordExpectation;
-            console.log(`  - ${i.date}: 期望=${recordExpectation} (阶段=${i.stage}, 双倍=${i.isDouble})`);
+            console.log(`  - ${i.date}: 期望=${recordExpectation} (阶段=${i.stage || `${i.stage1}/${i.stage2}/${i.stage3}`}, 双倍=${i.isDouble})`);
         });
         
         const diffTotal = totalMod - expectTotal;
@@ -1206,24 +1257,7 @@ function updateStats() {
             // 计算月度期望产出 - 始终使用每条记录自身保存的期望，确保历史数据稳定性
             let monthExpected = 0;
             month.records.forEach(record => {
-                // 优先使用记录自身保存的stageExpectation
-                let recordExpectation = 0;
-                if (record.stageExpectation !== undefined && record.stageExpectation !== null) {
-                    recordExpectation = record.stageExpectation;
-                } else if (record.stage) {
-                    // 如果记录中没有保存，但有阶段信息，根据阶段和双倍状态重新计算
-                    if (record.stage === '5') {
-                        recordExpectation = record.isDouble ? 3.32 : 1.66;
-                    } else if (record.stage === '6') {
-                        recordExpectation = record.isDouble ? 4.31 : 2.15;
-                    } else if (record.stage === '7') {
-                        recordExpectation = record.isDouble ? 4.56 : 2.28;
-                    }
-                } else {
-                    // 如果以上都没有，使用记录创建时的日期望（这里无法获取，所以使用阶段默认值）
-                    recordExpectation = 2.15; // 默认使用6阶段普通日的期望值
-                }
-                monthExpected += recordExpectation;
+                monthExpected += getRecordExpectation(record);
             });
             
             console.log(`月度统计 - ${month.monthName}:`);
@@ -1231,8 +1265,8 @@ function updateStats() {
             console.log(`  - 期望产出: ${monthExpected.toFixed(2)} (各记录期望产出之和)`);
             console.log(`  - 详细记录:`);
             month.records.forEach(record => {
-                let recordExpectation = record.stageExpectation || '未知';
-                console.log(`    - ${record.date}: 期望=${recordExpectation} (阶段=${record.stage}, 双倍=${record.isDouble})`);
+                const stageDisplay = record.stage1 ? `${record.stage1}/${record.stage2}/${record.stage3}` : record.stage;
+                console.log(`    - ${record.date}: 期望=${getRecordExpectation(record)} (阶段=${stageDisplay}, 双倍=${record.isDouble})`);
             });
             
             totalExpected += monthExpected;
@@ -1318,7 +1352,7 @@ function renderTrendChart() {
     
     const labels = sortedRecords.map(r => r.date);
     const moduleData = sortedRecords.map(r => r.totalModules);
-    const expectationData = sortedRecords.map(r => r.stageExpectation || expectations.daily);
+    const expectationData = sortedRecords.map(r => getRecordExpectation(r));
     const productionData = sortedRecords.map(r => parseFloat(r.totalProduction));
     
     const ctx = canvas.getContext('2d');
@@ -1385,15 +1419,25 @@ function renderDistributionChart() {
         distributionChart.destroy();
     }
     
-    // 按阶段统计
+    // 按阶段统计（按获取次数统计，兼容新旧数据格式）
     const stageCounts = { '5': 0, '6': 0, '7': 0 };
     const stageModuleTotals = { '5': 0, '6': 0, '7': 0 };
     
     materialRecords.forEach(r => {
-        if (stageCounts[r.stage] !== undefined) {
-            stageCounts[r.stage]++;
-            stageModuleTotals[r.stage] += r.totalModules;
-        }
+      if (r.stage1 !== undefined) {
+        // 新数据格式：统计每次获取
+        const modulesPerAcquisition = r.totalModules / 3;
+        stageCounts[r.stage1]++;
+        stageModuleTotals[r.stage1] += modulesPerAcquisition;
+        stageCounts[r.stage2]++;
+        stageModuleTotals[r.stage2] += modulesPerAcquisition;
+        stageCounts[r.stage3]++;
+        stageModuleTotals[r.stage3] += modulesPerAcquisition;
+      } else if (stageCounts[r.stage] !== undefined) {
+        // 旧数据格式：整条记录算3次获取
+        stageCounts[r.stage] += 3;
+        stageModuleTotals[r.stage] += r.totalModules;
+      }
     });
     
     const labels = ['5阶段', '6阶段', '7阶段'];
@@ -1408,7 +1452,7 @@ function renderDistributionChart() {
             labels: labels,
             datasets: [
                 {
-                    label: '记录次数',
+                    label: '获取次数',
                     data: countData,
                     backgroundColor: 'rgba(99, 102, 241, 0.8)',
                     yAxisID: 'y'
@@ -1427,7 +1471,7 @@ function renderDistributionChart() {
             plugins: {
                 title: {
                     display: true,
-                    text: '各阶段产出分布'
+                    text: '各阶段产出分布（按获取次数）'
                 },
                 legend: {
                     position: 'top'
@@ -1473,16 +1517,34 @@ function applyFilters(records) {
       return false;
     }
     
-    // 阶段筛选
-    if (filterState.stage && record.stage !== filterState.stage) {
-      return false;
+    // 阶段筛选 - 匹配任一阶段
+    if (filterState.stage) {
+      if (record.stage1 !== undefined) {
+        // 新数据格式：检查三次获取中是否有匹配的阶段
+        if (record.stage1 !== filterState.stage && 
+            record.stage2 !== filterState.stage && 
+            record.stage3 !== filterState.stage) {
+          return false;
+        }
+      } else {
+        // 旧数据格式
+        if (record.stage !== filterState.stage) {
+          return false;
+        }
+      }
     }
     
     // 搜索筛选
     if (filterState.search) {
       const searchTerm = filterState.search.toLowerCase();
+      let stageStr = '';
+      if (record.stage1 !== undefined) {
+        stageStr = `${record.stage1}/${record.stage2}/${record.stage3}`;
+      } else {
+        stageStr = record.stage || '';
+      }
       if (!record.date.toLowerCase().includes(searchTerm) && 
-          !record.stage.toLowerCase().includes(searchTerm) &&
+          !stageStr.toLowerCase().includes(searchTerm) &&
           !String(record.totalModules).includes(searchTerm)) {
         return false;
       }
@@ -1516,11 +1578,11 @@ renderTable = function() {
         <input type="checkbox" id="head-select-all" onchange="toggleSelectAll(this.checked)">
       </th>
       <th>日期</th>
+      <th>阶段</th>
       <th class="mobile-hide">第一次</th>
       <th class="mobile-hide">第二次</th>
       <th class="mobile-hide">第三次</th>
       <th>零件</th>
-      <th>阶段</th>
       <th>模组总数</th>
       <th class="mobile-hide">零件换算</th>
       <th class="mobile-hide">总产出</th>
@@ -1533,19 +1595,16 @@ renderTable = function() {
     const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
     const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
     
-    let expectedValue = item.stageExpectation || 0;
-    
-    if (!expectedValue && item.stage && STAGE_EXPECTATIONS[item.stage]) {
-      expectedValue = item.isDouble ? 
-        STAGE_EXPECTATIONS[item.stage].double : 
-        STAGE_EXPECTATIONS[item.stage].normal;
-    }
-    
-    if (!expectedValue) {
-      expectedValue = expectations.daily || 2.15;
-    }
-    
+    const expectedValue = getRecordExpectation(item);
     const recalculatedDiff = (item.totalModules - expectedValue).toFixed(2);
+    
+    // 构建阶段显示文本
+    let stageDisplay = '';
+    if (item.stage1 !== undefined) {
+      stageDisplay = `${item.stage1}/${item.stage2}/${item.stage3}`;
+    } else {
+      stageDisplay = item.stage || '-';
+    }
     
     const tr = document.createElement('tr');
     
@@ -1574,6 +1633,9 @@ renderTable = function() {
     const tdDate = document.createElement('td');
     tdDate.textContent = item.date;
     
+    const tdStage = document.createElement('td');
+    tdStage.textContent = stageDisplay;
+    
     const tdM1 = document.createElement('td');
     tdM1.className = 'mobile-hide';
     tdM1.textContent = item.m1;
@@ -1595,9 +1657,6 @@ renderTable = function() {
       tdParts.appendChild(document.createTextNode(' '));
       tdParts.appendChild(badge);
     }
-    
-    const tdStage = document.createElement('td');
-    tdStage.textContent = item.stage || '-';
     
     const tdTotalModules = document.createElement('td');
     tdTotalModules.textContent = item.totalModules;
@@ -1632,11 +1691,11 @@ renderTable = function() {
     // 按正确顺序添加所有列
     tr.appendChild(tdSelect);
     tr.appendChild(tdDate);
+    tr.appendChild(tdStage);
     tr.appendChild(tdM1);
     tr.appendChild(tdM2);
     tr.appendChild(tdM3);
     tr.appendChild(tdParts);
-    tr.appendChild(tdStage);
     tr.appendChild(tdTotalModules);
     tr.appendChild(tdPartsToMod);
     tr.appendChild(tdProduction);
@@ -1786,7 +1845,7 @@ function enhanceCharts() {
     
     const labels = sortedRecords.map(r => r.date);
     const moduleData = sortedRecords.map(r => r.totalModules);
-    const expectationData = sortedRecords.map(r => r.stageExpectation || expectations.daily);
+    const expectationData = sortedRecords.map(r => getRecordExpectation(r));
     const productionData = sortedRecords.map(r => parseFloat(r.totalProduction));
     
     const ctx = canvas.getContext('2d');
