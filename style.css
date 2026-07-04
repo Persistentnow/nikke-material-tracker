@@ -1611,7 +1611,6 @@ table tbody tr.selected:hover {
 
 .summary-label {
     font-size: 13px;
-字体大小：13px;
     color: var(--text-muted);
     font-weight: 500;
 }
