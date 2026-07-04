@@ -227,6 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   console.log('5. 初始化图表...');
   initCharts();
+  initChartResize();
+  initHistoryToggle();
   renderCharts();
   
   console.log('6. 初始化默认期望产出...');
@@ -1410,13 +1412,14 @@ function renderDistributionChart() {
         distributionChart.destroy();
     }
     
-    // 按阶段统计（按获取次数统计，兼容新旧数据格式）
     const stageCounts = { '5': 0, '6': 0, '7': 0 };
     const stageModuleTotals = { '5': 0, '6': 0, '7': 0 };
+    const stagePartsTotals = { '5': 0, '6': 0, '7': 0 };
+    
+    let totalAcquisitions = 0;
     
     materialRecords.forEach(r => {
       if (r.stage1 !== undefined) {
-        // 新数据格式：统计每次获取
         const modulesPerAcquisition = r.totalModules / 3;
         stageCounts[r.stage1]++;
         stageModuleTotals[r.stage1] += modulesPerAcquisition;
@@ -1424,16 +1427,24 @@ function renderDistributionChart() {
         stageModuleTotals[r.stage2] += modulesPerAcquisition;
         stageCounts[r.stage3]++;
         stageModuleTotals[r.stage3] += modulesPerAcquisition;
+        totalAcquisitions += 3;
       } else if (stageCounts[r.stage] !== undefined) {
-        // 旧数据格式：整条记录算3次获取
         stageCounts[r.stage] += 3;
         stageModuleTotals[r.stage] += r.totalModules;
+        totalAcquisitions += 3;
       }
     });
+    
+    const stageRates = {
+        '5': totalAcquisitions > 0 ? (stageCounts['5'] / totalAcquisitions * 100).toFixed(1) : 0,
+        '6': totalAcquisitions > 0 ? (stageCounts['6'] / totalAcquisitions * 100).toFixed(1) : 0,
+        '7': totalAcquisitions > 0 ? (stageCounts['7'] / totalAcquisitions * 100).toFixed(1) : 0
+    };
     
     const labels = ['5阶段', '6阶段', '7阶段'];
     const countData = [stageCounts['5'], stageCounts['6'], stageCounts['7']];
     const moduleData = [stageModuleTotals['5'], stageModuleTotals['6'], stageModuleTotals['7']];
+    const rateData = [stageRates['5'], stageRates['6'], stageRates['7']];
     
     const ctx = canvas.getContext('2d');
     
@@ -1446,26 +1457,40 @@ function renderDistributionChart() {
                     label: '获取次数',
                     data: countData,
                     backgroundColor: 'rgba(99, 102, 241, 0.8)',
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    borderRadius: 4
                 },
                 {
                     label: '模组总数',
                     data: moduleData,
                     backgroundColor: 'rgba(236, 72, 153, 0.8)',
-                    yAxisID: 'y1'
+                    yAxisID: 'y1',
+                    borderRadius: 4
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
                 title: {
                     display: true,
-                    text: '各阶段产出分布（按获取次数）'
+                    text: `各阶段产出分布（总计 ${totalAcquisitions} 次获取）`
                 },
                 legend: {
                     position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(tooltipItems) {
+                            const index = tooltipItems[0].dataIndex;
+                            return `占比: ${rateData[index]}%`;
+                        }
+                    }
                 }
             },
             scales: {
@@ -1475,8 +1500,9 @@ function renderDistributionChart() {
                     position: 'left',
                     title: {
                         display: true,
-                        text: '记录次数'
-                    }
+                        text: '获取次数'
+                    },
+                    beginAtZero: true
                 },
                 y1: {
                     type: 'linear',
@@ -1486,6 +1512,7 @@ function renderDistributionChart() {
                         display: true,
                         text: '模组总数'
                     },
+                    beginAtZero: true,
                     grid: {
                         drawOnChartArea: false
                     }
@@ -1493,6 +1520,54 @@ function renderDistributionChart() {
             }
         }
     });
+}
+
+function initChartResize() {
+    const handle = document.getElementById('charts-resize-handle');
+    const container = document.getElementById('charts-container');
+    let isResizing = false;
+    let startY = 0;
+    let startHeight = 0;
+    
+    handle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startY = e.clientY;
+        startHeight = container.offsetHeight;
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const deltaY = startY - e.clientY;
+        const newHeight = Math.max(300, Math.min(800, startHeight - deltaY));
+        
+        container.style.height = newHeight + 'px';
+        
+        if (trendChart) trendChart.resize();
+        if (distributionChart) distributionChart.resize();
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isResizing = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    });
+}
+
+function initHistoryToggle() {
+    const toggleBtn = document.getElementById('history-toggle');
+    const historySection = document.querySelector('.history-section');
+    const historyContent = document.getElementById('history-content');
+    
+    if (toggleBtn && historySection && historyContent) {
+        toggleBtn.addEventListener('click', () => {
+            historySection.classList.toggle('collapsed');
+            const isCollapsed = historySection.classList.contains('collapsed');
+            toggleBtn.setAttribute('title', isCollapsed ? '展开' : '折叠');
+        });
+    }
 }
 
 // ==================== 新增 UI 功能 ====================

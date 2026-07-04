@@ -741,14 +741,94 @@ tbody tr:hover {
 }
 
 /* ==================== Charts ==================== */
+.charts-section {
+    position: relative;
+    padding-bottom: 0;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.resize-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
 .charts-container {
     width: 100%;
-    min-height: 350px;
+    min-height: 300px;
+    max-height: 800px;
+    transition: height 0.2s ease;
 }
 
 .charts-container canvas {
     width: 100% !important;
-    height: auto !important;
+    height: 100% !important;
+}
+
+.resize-handle {
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    background: var(--bg-light);
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    transition: background 0.2s ease;
+    user-select: none;
+}
+
+.resize-handle:hover {
+    background: var(--border-color);
+}
+
+.resize-handle i {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.toggle-btn {
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.toggle-btn:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+.toggle-btn i {
+    font-size: 14px;
+    transition: transform 0.2s ease;
+}
+
+.history-section.collapsed .toggle-btn i {
+    transform: rotate(180deg);
+}
+
+.history-content {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.history-section.collapsed .history-content {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
 }
 
 /* ==================== Footer ==================== */

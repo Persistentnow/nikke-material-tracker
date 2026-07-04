@@ -394,7 +394,10 @@
             </section>
 
             <section class="charts-section">
-                <h2><i class="fas fa-chart-area"></i> 数据可视化</h2>
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-area"></i> 数据可视化</h2>
+                    <span class="resize-hint">拖动底部调整大小</span>
+                </div>
                 <div class="charts-controls">
                     <button id="chart-trend" class="chart-btn active">
                         <i class="fas fa-chart-line"></i> 产出趋势
@@ -403,88 +406,98 @@
                         <i class="fas fa-chart-bar"></i> 产出分布
                     </button>
                 </div>
-                <div class="charts-container">
+                <div class="charts-container" id="charts-container">
                     <canvas id="trendChart"></canvas>
                     <canvas id="distributionChart" style="display:none;"></canvas>
+                </div>
+                <div class="resize-handle" id="charts-resize-handle">
+                    <i class="fas fa-chevron-down"></i>
                 </div>
             </section>
 
             <section class="history-section">
-                <h2><i class="fas fa-history"></i> 历史记录</h2>
-                <div class="history-toolbar">
-                    <div class="history-controls">
-                        <button id="sort-date" class="sort-btn active">
-                            <i class="fas fa-sort"></i> 按日期排序
-                        </button>
-                        <button id="sort-difference" class="sort-btn">
-                            <i class="fas fa-sort-amount-down"></i> 按差值排序
-                        </button>
+                <div class="section-header">
+                    <h2><i class="fas fa-history"></i> 历史记录</h2>
+                    <button id="history-toggle" class="toggle-btn" title="折叠/展开">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+                <div class="history-content" id="history-content">
+                    <div class="history-toolbar">
+                        <div class="history-controls">
+                            <button id="sort-date" class="sort-btn active">
+                                <i class="fas fa-sort"></i> 按日期排序
+                            </button>
+                            <button id="sort-difference" class="sort-btn">
+                                <i class="fas fa-sort-amount-down"></i> 按差值排序
+                            </button>
+                        </div>
+                        
+                        <div class="filter-bar">
+                            <div class="filter-group">
+                                <input type="date" id="filter-start-date" placeholder="开始日期">
+                            </div>
+                            <div class="filter-group">
+                                <input type="date" id="filter-end-date" placeholder="结束日期">
+                            </div>
+                            <div class="filter-group">
+                                <select id="filter-stage">
+                                    <option value="">所有阶段</option>
+                                    <option value="5">5阶段</option>
+                                    <option value="6">6阶段</option>
+                                    <option value="7">7阶段</option>
+                                </select>
+                            </div>
+                            <div class="filter-group search-group">
+                                <i class="fas fa-search"></i>
+                                <input type="search" id="search-input" placeholder="搜索...">
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="filter-bar">
-                        <div class="filter-group">
-                            <input type="date" id="filter-start-date" placeholder="开始日期">
+                    <div class="table-container">
+                        <div class="batch-controls" id="batch-controls" style="display: none;">
+                            <div class="batch-info">
+                                <label class="select-all-label">
+                                    <input type="checkbox" id="select-all-checkbox">
+                                    <span>全选</span>
+                                </label>
+                                <span class="selected-count" id="selected-count">已选择 0 条记录</span>
+                            </div>
+                            <div class="batch-actions">
+                                <button type="button" id="batch-delete-btn" class="batch-action-btn danger">
+                                    <i class="fas fa-trash-alt"></i> 批量删除
+                                </button>
+                                <button type="button" id="batch-cancel-btn" class="batch-action-btn">
+                                    <i class="fas fa-times"></i> 取消选择
+                                </button>
+                            </div>
                         </div>
-                        <div class="filter-group">
-                            <input type="date" id="filter-end-date" placeholder="结束日期">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="select-column">
+                                        <input type="checkbox" id="main-select-checkbox" style="display: none;">
+                                    </th>
+                                    <th>日期</th>
+                                    <th class="mobile-hide">第一次</th>
+                                    <th class="mobile-hide">第二次</th>
+                                    <th class="mobile-hide">第三次</th>
+                                    <th>零件</th>
+                                    <th>阶段</th>
+                                    <th>模组总数</th>
+                                    <th class="mobile-hide">零件换算</th>
+                                    <th class="mobile-hide">总产出</th>
+                                    <th>差值</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table"></tbody>
+                        </table>
+                        <div id="no-records" style="text-align:center;padding:20px;display:none">
+                            <i class="fas fa-inbox"></i>
+                            <p>暂无记录</p>
                         </div>
-                        <div class="filter-group">
-                            <select id="filter-stage">
-                                <option value="">所有阶段</option>
-                                <option value="5">5阶段</option>
-                                <option value="6">6阶段</option>
-                                <option value="7">7阶段</option>
-                            </select>
-                        </div>
-                        <div class="filter-group search-group">
-                            <i class="fas fa-search"></i>
-                            <input type="search" id="search-input" placeholder="搜索...">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="table-container">
-                    <div class="batch-controls" id="batch-controls" style="display: none;">
-                        <div class="batch-info">
-                            <label class="select-all-label">
-                                <input type="checkbox" id="select-all-checkbox">
-                                <span>全选</span>
-                            </label>
-                            <span class="selected-count" id="selected-count">已选择 0 条记录</span>
-                        </div>
-                        <div class="batch-actions">
-                            <button type="button" id="batch-delete-btn" class="batch-action-btn danger">
-                                <i class="fas fa-trash-alt"></i> 批量删除
-                            </button>
-                            <button type="button" id="batch-cancel-btn" class="batch-action-btn">
-                                <i class="fas fa-times"></i> 取消选择
-                            </button>
-                        </div>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="select-column">
-                                    <input type="checkbox" id="main-select-checkbox" style="display: none;">
-                                </th>
-                                <th>日期</th>
-                                <th class="mobile-hide">第一次</th>
-                                <th class="mobile-hide">第二次</th>
-                                <th class="mobile-hide">第三次</th>
-                                <th>零件</th>
-                                <th>阶段</th>
-                                <th>模组总数</th>
-                                <th class="mobile-hide">零件换算</th>
-                                <th class="mobile-hide">总产出</th>
-                                <th>差值</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-table"></tbody>
-                    </table>
-                    <div id="no-records" style="text-align:center;padding:20px;display:none">
-                        <i class="fas fa-inbox"></i>
-                        <p>暂无记录</p>
                     </div>
                 </div>
             </section>
