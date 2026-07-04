@@ -3442,7 +3442,7 @@ window.toggleSelectAll = function(checked) {
  * 处理单个记录的选择状态变化
  * 优化：避免不必要的 DOM 操作，减少浏览器重排
  */
-function  功能 handleRecordSelection(checkbox) {
+function handleRecordSelection(checkbox) {
   const recordId = parseFloat(checkbox.getAttribute('data-id'));
   
   if (checkbox.checked) {
