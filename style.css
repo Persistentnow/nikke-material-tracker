@@ -1516,6 +1516,30 @@ table tbody tr.selected:hover {
     font-size: 14px;
 }
 
+.batch-acq-cell {
+    min-width: 180px;
+}
+
+.batch-acq-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.batch-acq-container input,
+.batch-acq-container select {
+    margin: 0;
+}
+
+.batch-acq-modules {
+    font-weight: 600;
+}
+
+.batch-acq-stage {
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+}
+
 .batch-row-delete {
     padding: 6px 10px;
     background: transparent;
@@ -1558,7 +1582,6 @@ table tbody tr.selected:hover {
     background: var(--bg-light);
     padding: 20px;
     border-radius: 12px;
-边界半径：12px;
     margin-bottom: 20px;
     border: 1px solid var(--border-color);
 }
@@ -1588,6 +1611,7 @@ table tbody tr.selected:hover {
 
 .summary-label {
     font-size: 13px;
+字体大小：13px;
     color: var(--text-muted);
     font-weight: 500;
 }
