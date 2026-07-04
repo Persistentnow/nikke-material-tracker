@@ -466,26 +466,54 @@ function updateRealTimeCalculation() {
     console.log(`实时预览 - 模组=${totalModules}, 零件=${totalParts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${totalStageExpectation}, 差值=${difference}`);
 }
 
-// 日期导航功能
+// 日期导航功能 - 安全处理时区问题
 function setupDateNavigation() {
     const dateInput = document.getElementById('record-date');
     const prevBtn = document.getElementById('prev-day');
     const nextBtn = document.getElementById('next-day');
     
     prevBtn.addEventListener('click', () => {
-        const currentDate = new Date(dateInput.value);
-        currentDate.setDate(currentDate.getDate() - 1);
-        dateInput.valueAsDate = currentDate;
+        // 从输入字符串直接提取年月日，避免时区问题
+        const parts = extractDateParts(dateInput.value);
+        if (parts) {
+            // 使用 UTC 日期计算，避免跨天偏移
+            const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+            currentDate.setUTCDate(currentDate.getUTCDate() - 1);
+            // 设置为本地时间的对应日期
+            const localDate = new Date(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate());
+            dateInput.valueAsDate = localDate;
+        }
     });
     
     nextBtn.addEventListener('click', () => {
-        const currentDate = new Date(dateInput.value);
-        currentDate.setDate(currentDate.getDate() + 1);
-        // 不能选择未来日期
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (currentDate <= today) {
-            dateInput.valueAsDate = currentDate;
+        // 从输入字符串直接提取年月日，避免时区问题
+        const parts = extractDateParts(dateInput.value);
+        if (parts) {
+            // 使用 UTC 日期计算，避免跨天偏移
+            const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+            
+            // 不能选择未来日期（基于本地时间）
+            const today = new Date();
+            const todayParts = {
+                year: today.getFullYear(),
+                month: today.getMonth() + 1,
+                day: today.getDate()
+            };
+            
+            const newYear = currentDate.getUTCFullYear();
+            const newMonth = currentDate.getUTCMonth() + 1;
+            const newDay = currentDate.getUTCDate();
+            
+            // 比较年月日，避免时分秒影响
+            const isFuture = (newYear > todayParts.year) || 
+                             (newYear === todayParts.year && newMonth > todayParts.month) ||
+                             (newYear === todayParts.year && newMonth === todayParts.month && newDay > todayParts.day);
+            
+            if (!isFuture) {
+                const localDate = new Date(newYear, newMonth - 1, newDay);
+                dateInput.valueAsDate = localDate;
+            }
         }
     });
 }
@@ -617,8 +645,8 @@ function exportToCSV(records) {
   showNotification('CSV 数据导出成功！', 'success');
 }
 
-// 显示通知
-function showNotification(message, type = 'info') {
+// 显示通知（支持HTML内容，例如撤销按钮）
+function showNotification(message, type = 'info', duration = 3000) {
     // 移除现有的通知
     const existingNotification = document.querySelector('.notification');
     if (existingNotification) {
@@ -627,7 +655,10 @@ function showNotification(message, type = 'info') {
     
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
-    notification.textContent = message;
+    
+    // 关键修复：使用 innerHTML 而不是 textContent，
+    // 这样才能正确渲染 HTML 标签（如 <button class="undo-btn">撤销</button>）
+    notification.innerHTML = message;
     
     // 添加样式
     Object.assign(notification.style, {
@@ -641,7 +672,12 @@ function showNotification(message, type = 'info') {
         zIndex: '1000',
         transform: 'translateX(100%)',
         transition: 'transform 0.3s ease',
-        backgroundColor: type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#2196f3'
+        backgroundColor: type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : type === 'warning' ? '#ff9800' : '#2196f3',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        maxWidth: '90vw',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
     });
     
     document.body.appendChild(notification);
@@ -651,15 +687,18 @@ function showNotification(message, type = 'info') {
         notification.style.transform = 'translateX(0)';
     }, 100);
     
-    // 自动隐藏
+    // 自动隐藏（支持自定义时长）
     setTimeout(() => {
+        // 如果通知已被用户点击移除，则不执行动画
+        if (!document.body.contains(notification)) return;
+        
         notification.style.transform = 'translateX(100%)';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
         }, 300);
-    }, 3000);
+    }, duration);
 }
 
 // ==================== 数据管理 ====================
@@ -1535,6 +1574,9 @@ renderTable = function() {
   const thead = historyTable.parentElement.querySelector('thead tr');
   if (thead) {
     thead.innerHTML = `
+      <th class="select-column">
+        <input type="checkbox" id="head-select-all" onchange="toggleSelectAll(this.checked)">
+      </th>
       <th>日期</th>
       <th>阶段</th>
       <th class="mobile-hide">第一次</th>
@@ -1565,6 +1607,28 @@ renderTable = function() {
     }
     
     const tr = document.createElement('tr');
+    
+    // 添加选择列（带复选框）
+    const tdSelect = document.createElement('td');
+    tdSelect.className = 'select-column';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'record-checkbox';
+    checkbox.setAttribute('data-id', item.id);
+    
+    // 如果已经被选中，标记为选中
+    if (selectedRecordIds.has(item.id)) {
+      checkbox.checked = true;
+      tr.classList.add('selected');
+    }
+    
+    // 绑定选择事件
+    checkbox.addEventListener('change', function() {
+      handleRecordSelection(this);
+    });
+    
+    tdSelect.appendChild(checkbox);
     
     const tdDate = document.createElement('td');
     tdDate.textContent = item.date;
@@ -1624,6 +1688,8 @@ renderTable = function() {
     tdActions.appendChild(document.createTextNode(' '));
     tdActions.appendChild(deleteBtn);
     
+    // 按正确顺序添加所有列
+    tr.appendChild(tdSelect);
     tr.appendChild(tdDate);
     tr.appendChild(tdStage);
     tr.appendChild(tdM1);
@@ -2009,6 +2075,1313 @@ function enhanceCharts() {
   };
 }
 
+// ==================== 批量录入功能 ====================
+
+// 全局状态
+let batchRows = [];
+
+function initBatchInput() {
+  const modeTabs = document.querySelectorAll('.mode-tab');
+  const singlePanel = document.querySelector('.single-input-panel');
+  const batchPanel = document.querySelector('.batch-input-panel');
+
+  // 初始化日期默认值 - 使用本地时间方法
+  const now = new Date();
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth();
+  const todayDay = now.getDate();
+  
+  // 创建今天的 UTC 日期对象
+  const today = new Date(Date.UTC(todayYear, todayMonth, todayDay, 12, 0, 0));
+  
+  // 创建一周前的日期（基于 UTC 日期计算）
+  const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  const batchStartDate = document.getElementById('batch-start-date');
+  const batchEndDate = document.getElementById('batch-end-date');
+  
+  if (batchStartDate) {
+    batchStartDate.value = formatDate(lastWeek);
+    console.log('批量录入起始日期:', batchStartDate.value);
+  }
+  if (batchEndDate) {
+    batchEndDate.value = formatDate(today);
+    console.log('批量录入结束日期:', batchEndDate.value);
+  }
+
+  // 模式切换
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', function() {
+      const mode = this.getAttribute('data-mode');
+      
+      modeTabs.forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      
+      if (mode === 'single') {
+        singlePanel.style.display = 'block';
+        batchPanel.style.display = 'none';
+      } else {
+        singlePanel.style.display = 'none';
+        batchPanel.style.display = 'block';
+        updateBatchSummary();
+      }
+    });
+  });
+
+  // 绑定快捷操作按钮
+  bindBatchQuickActions();
+
+  // 绑定批量提交按钮
+  bindBatchSubmit();
+
+  console.log('批量录入功能初始化完成！');
+}
+
+/**
+ * 安全地将 Date 对象格式化为 YYYY-MM-DD 字符串
+ * 核心原则：始终使用 UTC 方法，避免时区偏移
+ */
+function formatDate(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return '';
+  }
+  // 关键：使用 UTC 方法提取年月日
+  // 在东八区，getDate() 可能返回 UTC-8 的日期，而 getUTCDate() 返回正确的 UTC 日期
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 安全地将 YYYY-MM-DD 字符串解析为 Date 对象
+ * 只用于需要日期比较的场景（如批量录入的日期范围）
+ * 始终使用 UTC 时间构造，避免时区问题
+ */
+function parseDateSafe(dateString) {
+  if (!dateString) return null;
+  
+  // 如果已经是 Date 对象 - 使用 UTC 方法重新规范化
+  if (dateString instanceof Date) {
+    if (!isNaN(dateString.getTime())) {
+      const y = dateString.getUTCFullYear();
+      const m = dateString.getUTCMonth();
+      const d = dateString.getUTCDate();
+      return new Date(Date.UTC(y, m, d, 12, 0, 0));
+    }
+    return null;
+  }
+  
+  const trimmed = String(dateString).trim();
+  
+  // 1. 如果是 YYYY-MM-DD 格式 - 最安全的方式
+  const matchISO = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matchISO) {
+    const year = parseInt(matchISO[1], 10);
+    const month = parseInt(matchISO[2], 10) - 1; // 月份从0开始
+    const day = parseInt(matchISO[3], 10);
+    // 关键：使用 Date.UTC() 而不是 new Date(year, month, day)
+    // 因为后者会使用本地时区
+    return new Date(Date.UTC(year, month, day, 12, 0, 0));
+  }
+  
+  // 2. 如果是 YYYY/MM/DD 格式
+  const matchSlash = trimmed.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+  if (matchSlash) {
+    const year = parseInt(matchSlash[1], 10);
+    const month = parseInt(matchSlash[2], 10) - 1;
+    const day = parseInt(matchSlash[3], 10);
+    return new Date(Date.UTC(year, month, day, 12, 0, 0));
+  }
+  
+  // 3. 如果是 M/D/YYYY 格式
+  const matchUS = trimmed.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{4})$/);
+  if (matchUS) {
+    const month = parseInt(matchUS[1], 10) - 1;
+    const day = parseInt(matchUS[2], 10);
+    const year = parseInt(matchUS[3], 10);
+    return new Date(Date.UTC(year, month, day, 12, 0, 0));
+  }
+  
+  // 4. 其他格式 - 谨慎处理，避免使用 new Date(string)
+  // 直接从字符串中提取数字
+  const numbers = trimmed.match(/\d+/g);
+  if (numbers && numbers.length >= 3) {
+    let year, month, day;
+    
+    // 找年份（大于1000的数字）
+    const yearIdx = numbers.findIndex(n => parseInt(n) > 1000);
+    if (yearIdx !== -1) {
+      year = parseInt(numbers[yearIdx], 10);
+      const others = numbers.filter((_, i) => i !== yearIdx).map(n => parseInt(n, 10));
+      if (others.length >= 2) {
+        // 月和日 - 假设较小的是月，较大的是日
+        const min = Math.min(others[0], others[1]);
+        const max = Math.max(others[0], others[1]);
+        month = (min <= 12 ? min : max) - 1;
+        day = min <= 12 ? max : min;
+        return new Date(Date.UTC(year, month, day, 12, 0, 0));
+      }
+    }
+  }
+  
+  // 无法解析
+  return null;
+}
+
+/**
+ * 获取今天的日期字符串（YYYY-MM-DD），基于本地时间
+ */
+function getTodayString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 从 YYYY-MM-DD 字符串中提取年月日（无需解析为 Date 对象）
+ */
+function extractDateParts(dateString) {
+  if (!dateString) return null;
+  
+  const match = String(dateString).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return {
+      year: parseInt(match[1], 10),
+      month: parseInt(match[2], 10),
+      day: parseInt(match[3], 10)
+    };
+  }
+  return null;
+}
+
+function bindBatchQuickActions() {
+  const generateBtn = document.getElementById('btn-generate-rows');
+  const fillPartsBtn = document.getElementById('btn-fill-default-parts');
+  const copyModulesBtn = document.getElementById('btn-copy-down-modules');
+  const clearBtn = document.getElementById('btn-clear-all');
+
+  if (generateBtn) {
+    generateBtn.addEventListener('click', generateBatchRows);
+  }
+
+  if (fillPartsBtn) {
+    fillPartsBtn.addEventListener('click', fillDefaultParts);
+  }
+
+  if (copyModulesBtn) {
+    copyModulesBtn.addEventListener('click', copyModulesToAll);
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', clearAllBatchRows);
+  }
+}
+
+function generateBatchRows() {
+  const startDateInput = document.getElementById('batch-start-date');
+  const endDateInput = document.getElementById('batch-end-date');
+  const defaultStage = document.getElementById('batch-default-stage').value;
+  const tbody = document.getElementById('batch-table-body');
+  const emptyHint = document.getElementById('batch-empty-hint');
+
+  if (!startDateInput.value || !endDateInput.value) {
+    showNotification('请选择起始和结束日期', 'error');
+    return;
+  }
+
+  // 使用安全的日期解析方法
+  const startDate = parseDateSafe(startDateInput.value);
+  const endDate = parseDateSafe(endDateInput.value);
+
+  if (!startDate || !endDate) {
+    showNotification('日期格式不正确', 'error');
+    return;
+  }
+
+  if (startDate > endDate) {
+    showNotification('起始日期不能晚于结束日期', 'error');
+    return;
+  }
+
+  console.log(`生成批量记录: 从 ${formatDate(startDate)} 到 ${formatDate(endDate)}`);
+
+  // 生成日期范围内的所有行 - 使用字符串直接处理避免时区问题
+  batchRows = [];
+  
+  // 从输入字符串直接提取年月日
+  const startParts = extractDateParts(startDateInput.value);
+  const endParts = extractDateParts(endDateInput.value);
+  
+  if (startParts && endParts) {
+    // 更安全的日期生成方式：使用年月日直接生成
+    let currentYear = startParts.year;
+    let currentMonth = startParts.month;
+    let currentDay = startParts.day;
+    
+    while (true) {
+      // 构造当前日期字符串
+      const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+      
+      // 检查该日期是否已经有记录
+      const hasExistingRecord = materialRecords.some(r => r.date === dateStr);
+      
+      if (!hasExistingRecord) {
+        batchRows.push({
+          date: dateStr,
+          stage: defaultStage,
+          m1: 0,
+          m2: 0,
+          m3: 0,
+          parts: STAGE_PARTS[defaultStage] || 0,
+          isDouble: false
+        });
+        console.log(`生成记录行: ${dateStr}`);
+      } else {
+        console.log(`日期 ${dateStr} 已有记录，跳过`);
+      }
+      
+      // 检查是否到达结束日期
+      if (currentYear === endParts.year && 
+          currentMonth === endParts.month && 
+          currentDay === endParts.day) {
+        break;
+      }
+      
+      // 增加一天 - 用 Date 对象处理月份年份进位
+      const tempDate = new Date(Date.UTC(currentYear, currentMonth - 1, currentDay, 12, 0, 0));
+      tempDate.setUTCDate(tempDate.getUTCDate() + 1);
+      
+      currentYear = tempDate.getUTCFullYear();
+      currentMonth = tempDate.getUTCMonth() + 1;
+      currentDay = tempDate.getUTCDate();
+    }
+  } else {
+    // 如果字符串解析失败，回退到安全解析方式
+    const currentDate = new Date(startDate.getTime());
+    
+    while (currentDate <= endDate) {
+      const dateStr = formatDate(currentDate);
+      
+      const hasExistingRecord = materialRecords.some(r => r.date === dateStr);
+      
+      if (!hasExistingRecord) {
+        batchRows.push({
+          date: dateStr,
+          stage: defaultStage,
+          m1: 0,
+          m2: 0,
+          m3: 0,
+          parts: STAGE_PARTS[defaultStage] || 0,
+          isDouble: false
+        });
+      }
+      
+      // 使用 UTC 日期增加避免时区问题
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
+  }
+
+  if (batchRows.length === 0) {
+    showNotification('所选日期范围内所有日期都已有记录', 'info');
+    return;
+  }
+
+  renderBatchTable();
+  updateBatchSummary();
+  
+  if (emptyHint) {
+    emptyHint.style.display = batchRows.length === 0 ? 'block' : 'none';
+  }
+
+  showNotification(`成功生成 ${batchRows.length} 条记录行`, 'success');
+  console.log(`批量记录生成完成，共 ${batchRows.length} 条`);
+}
+
+function renderBatchTable() {
+  const tbody = document.getElementById('batch-table-body');
+  const emptyHint = document.getElementById('batch-empty-hint');
+  
+  if (!tbody) return;
+  
+  tbody.innerHTML = '';
+  
+  if (batchRows.length === 0) {
+    if (emptyHint) {
+      emptyHint.style.display = 'block';
+    }
+    return;
+  }
+
+  if (emptyHint) {
+    emptyHint.style.display = 'none';
+  }
+
+  batchRows.forEach((row, index) => {
+    const tr = document.createElement('tr');
+    
+    // 日期
+    const tdDate = document.createElement('td');
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.value = row.date;
+    dateInput.addEventListener('change', function() {
+      batchRows[index].date = this.value;
+      updateBatchSummary();
+    });
+    tdDate.appendChild(dateInput);
+    
+    // 阶段
+    const tdStage = document.createElement('td');
+    const stageSelect = document.createElement('select');
+    ['5', '6', '7'].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = `${s}阶段`;
+      if (row.stage === s) opt.selected = true;
+      stageSelect.appendChild(opt);
+    });
+    stageSelect.addEventListener('change', function() {
+      batchRows[index].stage = this.value;
+      updateBatchSummary();
+    });
+    tdStage.appendChild(stageSelect);
+    
+    // 第一次获取
+    const tdM1 = document.createElement('td');
+    const m1Input = document.createElement('input');
+    m1Input.type = 'number';
+    m1Input.min = '0';
+    m1Input.value = row.m1;
+    m1Input.addEventListener('input', function() {
+      batchRows[index].m1 = +this.value || 0;
+      updateRowSubtotal(tr, batchRows[index]);
+      updateBatchSummary();
+    });
+    tdM1.appendChild(m1Input);
+    
+    // 第二次获取
+    const tdM2 = document.createElement('td');
+    const m2Input = document.createElement('input');
+    m2Input.type = 'number';
+    m2Input.min = '0';
+    m2Input.value = row.m2;
+    m2Input.addEventListener('input', function() {
+      batchRows[index].m2 = +this.value || 0;
+      updateRowSubtotal(tr, batchRows[index]);
+      updateBatchSummary();
+    });
+    tdM2.appendChild(m2Input);
+    
+    // 第三次获取
+    const tdM3 = document.createElement('td');
+    const m3Input = document.createElement('input');
+    m3Input.type = 'number';
+    m3Input.min = '0';
+    m3Input.value = row.m3;
+    m3Input.addEventListener('input', function() {
+      batchRows[index].m3 = +this.value || 0;
+      updateRowSubtotal(tr, batchRows[index]);
+      updateBatchSummary();
+    });
+    tdM3.appendChild(m3Input);
+    
+    // 零件
+    const tdParts = document.createElement('td');
+    const partsInput = document.createElement('input');
+    partsInput.type = 'number';
+    partsInput.min = '0';
+    partsInput.value = row.parts;
+    partsInput.addEventListener('input', function() {
+      batchRows[index].parts = +this.value || 0;
+      updateBatchSummary();
+    });
+    tdParts.appendChild(partsInput);
+    
+    // 双倍
+    const tdDouble = document.createElement('td');
+    const doubleCheckbox = document.createElement('input');
+    doubleCheckbox.type = 'checkbox';
+    doubleCheckbox.checked = row.isDouble;
+    doubleCheckbox.addEventListener('change', function() {
+      batchRows[index].isDouble = this.checked;
+      updateBatchSummary();
+    });
+    tdDouble.appendChild(doubleCheckbox);
+    
+    // 小计
+    const tdSubtotal = document.createElement('td');
+    tdSubtotal.className = 'batch-subtotal';
+    updateRowSubtotal(tr, row);
+    
+    // 删除按钮
+    const tdDelete = document.createElement('td');
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'batch-row-delete';
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    deleteBtn.addEventListener('click', function() {
+      batchRows.splice(index, 1);
+      renderBatchTable();
+      updateBatchSummary();
+    });
+    tdDelete.appendChild(deleteBtn);
+    
+    tr.appendChild(tdDate);
+    tr.appendChild(tdStage);
+    tr.appendChild(tdM1);
+    tr.appendChild(tdM2);
+    tr.appendChild(tdM3);
+    tr.appendChild(tdParts);
+    tr.appendChild(tdDouble);
+    tr.appendChild(tdSubtotal);
+    tr.appendChild(tdDelete);
+    
+    tbody.appendChild(tr);
+  });
+}
+
+function updateRowSubtotal(tr, row) {
+  const totalModules = row.m1 + row.m2 + row.m3;
+  const partsToMod = (row.parts * (row.isDouble ? 2 : 1) / 100).toFixed(2);
+  const subtotal = document.createElement('span');
+  subtotal.textContent = totalModules;
+  
+  const subtotalTd = tr.querySelectorAll('td')[7];
+  if (subtotalTd) {
+    subtotalTd.innerHTML = '';
+    subtotalTd.appendChild(subtotal);
+  }
+}
+
+function updateBatchSummary() {
+  const summaryCount = document.getElementById('batch-summary-count');
+  const summaryModules = document.getElementById('batch-summary-modules');
+  const summaryParts = document.getElementById('batch-summary-parts');
+  const summaryPartsToModules = document.getElementById('batch-summary-parts-to-modules');
+
+  let totalModules = 0;
+  let totalParts = 0;
+
+  batchRows.forEach(row => {
+    totalModules += row.m1 + row.m2 + row.m3;
+    totalParts += row.parts * (row.isDouble ? 2 : 1);
+  });
+
+  if (summaryCount) summaryCount.textContent = batchRows.length;
+  if (summaryModules) summaryModules.textContent = totalModules;
+  if (summaryParts) summaryParts.textContent = totalParts;
+  if (summaryPartsToModules) summaryPartsToModules.textContent = (totalParts / 100).toFixed(2);
+}
+
+function fillDefaultParts() {
+  const defaultStage = document.getElementById('batch-default-stage').value;
+  const defaultParts = STAGE_PARTS[defaultStage] || 0;
+  
+  batchRows.forEach(row => {
+    row.parts = defaultParts;
+  });
+
+  renderBatchTable();
+  updateBatchSummary();
+  showNotification(`已填充 ${defaultStage}阶段的默认零件数量: ${defaultParts}`, 'success');
+}
+
+function copyModulesToAll() {
+  if (batchRows.length === 0) {
+    showNotification('请先生成记录行', 'error');
+    return;
+  }
+
+  // 使用第一行的模组数量作为模板
+  const template = batchRows[0];
+  
+  if (template.m1 === 0 && template.m2 === 0 && template.m3 === 0) {
+    showNotification('请先在第一行输入模组数量', 'error');
+    return;
+  }
+
+  batchRows.forEach((row, index) => {
+    if (index !== 0) {
+      row.m1 = template.m1;
+      row.m2 = template.m2;
+      row.m3 = template.m3;
+    }
+  });
+
+  renderBatchTable();
+  updateBatchSummary();
+  showNotification('已将第一行的模组数量复制到所有行', 'success');
+}
+
+function clearAllBatchRows() {
+  if (batchRows.length === 0) {
+    showNotification('没有记录需要清空', 'info');
+    return;
+  }
+
+  if (confirm('确定要清空所有记录行吗？')) {
+    batchRows = [];
+    renderBatchTable();
+    updateBatchSummary();
+    showNotification('已清空所有记录行', 'info');
+  }
+}
+
+function bindBatchSubmit() {
+  const submitBtn = document.getElementById('btn-batch-submit');
+  
+  if (submitBtn) {
+    submitBtn.addEventListener('click', function() {
+      if (batchRows.length === 0) {
+        showNotification('没有可提交的记录，请先生成并填写数据', 'error');
+        return;
+      }
+
+      // 验证数据
+      let validCount = 0;
+      let skippedDates = [];
+      const newRecords = [];
+
+      batchRows.forEach(row => {
+        // 检查日期是否重复
+        if (materialRecords.some(r => r.date === row.date)) {
+          skippedDates.push(row.date);
+          return;
+        }
+
+        // 验证必填字段
+        if (!row.date || !row.stage) {
+          return;
+        }
+
+        const finalParts = row.isDouble ? row.parts * 2 : row.parts;
+        const totalModules = row.m1 + row.m2 + row.m3;
+        const partsToMod = (finalParts / 100).toFixed(2);
+        const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+        
+        // 根据阶段计算期望产出
+        const stageExpectation = getStageExpectation(row.stage, row.isDouble);
+        const diff = (totalModules - stageExpectation).toFixed(2);
+
+        newRecords.push({
+          id: Date.now() + Math.random(),
+          date: row.date,
+          m1: row.m1,
+          m2: row.m2,
+          m3: row.m3,
+          parts: finalParts,
+          stage: row.stage,
+          isDouble: row.isDouble,
+          totalModules: totalModules,
+          partsToMod: partsToMod,
+          totalProduction: totalProduction,
+          diff: diff,
+          stageExpectation: stageExpectation
+        });
+
+        validCount++;
+      });
+
+      if (validCount === 0) {
+        showNotification('没有有效的记录可以提交', 'error');
+        return;
+      }
+
+      // 添加新记录到 materialRecords
+      materialRecords.push(...newRecords);
+
+      // 保存
+      save();
+
+      // 更新UI
+      renderTable();
+      updateStats();
+      renderCharts();
+
+      // 清空批量录入表格
+      batchRows = [];
+      renderBatchTable();
+      updateBatchSummary();
+
+      let message = `成功提交 ${validCount} 条记录！`;
+      if (skippedDates.length > 0) {
+        message += ` 跳过 ${skippedDates.length} 条已存在的日期。`;
+      }
+
+      showNotification(message, 'success');
+      console.log('批量提交完成，共添加', validCount, '条新记录');
+      
+      if (skippedDates.length > 0) {
+        console.log('跳过的日期:', skippedDates);
+      }
+    });
+  }
+}
+
+// ==================== Excel 导入导出功能 ====================
+
+// 初始化 Excel 功能
+function initExcelFeatures() {
+  const exportTemplateBtn = document.getElementById('export-excel-template');
+  const importExcelBtn = document.getElementById('import-excel-data');
+  const excelFileInput = document.getElementById('excel-file-input');
+
+  // 导出 Excel 模板
+  if (exportTemplateBtn) {
+    exportTemplateBtn.addEventListener('click', exportExcelTemplate);
+  }
+
+  // 导入 Excel 数据
+  if (importExcelBtn) {
+    importExcelBtn.addEventListener('click', function() {
+      excelFileInput.click();
+    });
+  }
+
+  // 处理文件选择
+  if (excelFileInput) {
+    excelFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          importExcelData(e.target.result);
+        } catch (error) {
+          console.error('Excel 导入失败:', error);
+          showNotification('Excel 文件导入失败，请检查文件格式是否正确', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      e.target.value = '';
+    });
+  }
+
+  console.log('Excel 功能初始化完成！');
+}
+
+// 导出 Excel 模板
+function exportExcelTemplate() {
+  const templateData = [
+    {
+      '日期': '2024-01-01',
+      '阶段': 7,
+      '第一次获取': 0,
+      '第二次获取': 0,
+      '第三次获取': 0,
+      '零件数量': 111,
+      '是否双倍': '否'
+    },
+    {
+      '日期': '2024-01-02',
+      '阶段': 7,
+      '第一次获取': 1,
+      '第二次获取': 2,
+      '第三次获取': 0,
+      '零件数量': 111,
+      '是否双倍': '是'
+    },
+    {
+      '日期': '2024-01-03',
+      '阶段': 6,
+      '第一次获取': 2,
+      '第二次获取': 1,
+      '第三次获取': 1,
+      '零件数量': 105,
+      '是否双倍': '否'
+    }
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(templateData);
+
+  // 设置列宽
+  ws['!cols'] = [
+    { wch: 12 },  // 日期
+    { wch: 8 },   // 阶段
+    { wch: 10 },  // 第一次获取
+    { wch: 10 },  // 第二次获取
+    { wch: 10 },  // 第三次获取
+    { wch: 10 },  // 零件数量
+    { wch: 10 }   // 是否双倍
+  ];
+
+  // 创建工作簿
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '材料记录模板');
+
+  // 添加使用说明 Sheet
+  const instructions = [
+    { 说明: 'NIKKE材料记录工具 - Excel 导入模板' },
+    { 说明: '' },
+    { 说明: '【填写说明】' },
+    { 说明: '1. 日期：格式为 YYYY-MM-DD，例如 2024-01-01' },
+    { 说明: '2. 阶段：填写 5、6 或 7' },
+    { 说明: '3. 第一次获取 ~ 第三次获取：填写每次获取的模组数量（整数）' },
+    { 说明: '4. 零件数量：该次获取的零件数量（整数）' },
+    {说明: '5. 是否双倍：填写 "是" 或 "否"' },
+    { 说明: '' },
+    { 说明: '【注意事项】' },
+    { 说明: '- 日期列必填，其他列可为空' },
+    { 说明: '- 阶段默认为7阶段（111零件）' },
+    { 说明: '- 零件数量根据阶段自动设置：5阶段=81, 6阶段=105, 7阶段=111' },
+    { 说明: '- "是"表示双倍产出，零件数量会自动翻倍' },
+    { 说明: '- 已有记录的日期会被跳过，不会重复导入' },
+    { 说明: '' },
+    { 说明: '【示例数据】' },
+    { 说明: '请参考第一张工作表中的示例数据' }
+  ];
+
+  const wsInstructions = XLSX.utils.json_to_sheet(instructions);
+  XLSX.utils.book_append_sheet(wb, wsInstructions, '使用说明');
+
+  const fileName = `NIKKE材料记录模板_${formatDate(new Date())}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+
+  showNotification('Excel 模板导出成功！', 'success');
+  console.log('Excel 模板导出完成:', fileName);
+}
+
+// 从 Excel 导入数据
+function importExcelData(arrayBuffer) {
+  try {
+    const data = new Uint8Array(arrayBuffer);
+    // 关键：禁用 cellDates，让我们自己处理日期格式
+    // 避免 SheetJS 使用本地时区创建 Date 对象导致跨日
+    const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: true });
+
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+
+    // raw: true - 获取单元格的原始值（不格式化）
+    // defval: '' - 空单元格默认值为空字符串
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
+
+    if (jsonData.length === 0) {
+      showNotification('Excel 文件中没有数据', 'error');
+      return;
+    }
+
+    // 解析并验证数据
+    const validRecords = [];
+    const skippedRecords = [];
+    const errorRecords = [];
+
+    jsonData.forEach((row, index) => {
+      const rowNum = index + 2; // Excel 行号（从2开始，因为第1行是表头）
+
+      try {
+        // 提取数据
+        const date = row['日期'];
+        const stage = parseInt(row['阶段']) || 7;
+        const m1 = parseInt(row['第一次获取']) || 0;
+        const m2 = parseInt(row['第二次获取']) || 0;
+        const m3 = parseInt(row['第三次获取']) || 0;
+        const parts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 111;
+        const isDouble = String(row['是否双倍']).trim().toLowerCase() === '是' || 
+                         String(row['是否双倍']).trim() === '1' ||
+                         String(row['是否双倍']).trim().toLowerCase() === 'true';
+
+        // 验证日期格式
+        if (!date) {
+          errorRecords.push({ row: rowNum, error: '日期不能为空' });
+          return;
+        }
+
+        // 调试：显示原始日期和解析结果
+        console.log(`行 ${rowNum}: 日期原始值 =`, date, `类型 =`, typeof date);
+        
+        const dateStr = formatDateValue(date);
+        console.log(`行 ${rowNum}: 解析后日期 = ${dateStr}`);
+        
+        if (!dateStr) {
+          errorRecords.push({ row: rowNum, error: '日期格式不正确，请使用 YYYY-MM-DD 格式' });
+          return;
+        }
+
+        // 检查是否已有记录
+        if (materialRecords.some(r => r.date === dateStr)) {
+          skippedRecords.push({ date: dateStr, reason: '日期已存在' });
+          return;
+        }
+
+        // 计算最终值
+        const finalParts = isDouble ? parts * 2 : parts;
+        const totalModules = m1 + m2 + m3;
+        const partsToMod = (finalParts / 100).toFixed(2);
+        const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
+
+        // 根据阶段计算期望产出
+        const stageExpectation = getStageExpectation(stage, isDouble);
+        const diff = (totalModules - stageExpectation).toFixed(2);
+
+        validRecords.push({
+          id: Date.now() + Math.random() + Math.random(),
+          date: dateStr,
+          m1,
+          m2,
+          m3,
+          parts: finalParts,
+          stage,
+          isDouble,
+          totalModules,
+          partsToMod,
+          totalProduction,
+          diff,
+          stageExpectation
+        });
+      } catch (err) {
+        console.error(`处理第 ${rowNum} 行时出错:`, err);
+        errorRecords.push({ row: rowNum, error: err.message });
+      }
+    });
+
+    if (validRecords.length === 0) {
+      let errorMsg = '没有找到有效的记录可以导入';
+      if (errorRecords.length > 0) {
+        errorMsg += `。前 ${Math.min(3, errorRecords.length)} 个错误: ${errorRecords[0].error}`;
+        if (errorRecords.length > 1) {
+          errorMsg += `; ${errorRecords[1].error}`;
+        }
+        if (errorRecords.length > 2) {
+          errorMsg += ` 等共 ${errorRecords.length} 个错误`;
+        }
+      }
+      if (skippedRecords.length > 0) {
+        errorMsg += `。另外有 ${skippedRecords.length} 条记录因日期已存在被跳过`;
+      }
+      showNotification(errorMsg, 'error');
+      console.log('导入结果:', { validRecords, skippedRecords, errorRecords });
+      return;
+    }
+
+    // 添加有效记录
+    materialRecords.push(...validRecords);
+
+    // 保存数据
+    save();
+
+    // 更新 UI
+    renderTable();
+    updateStats();
+    renderCharts();
+
+    // 生成结果消息
+    let message = `成功导入 ${validRecords.length} 条记录！`;
+    if (skippedRecords.length > 0) {
+      message += ` 跳过 ${skippedRecords.length} 条已存在的日期。`;
+    }
+    if (errorRecords.length > 0) {
+      message += ` 有 ${errorRecords.length} 条记录导入失败。`;
+    }
+
+    showNotification(message, 'success');
+
+    console.log('Excel 导入完成:', {
+      成功: validRecords.length,
+      跳过: skippedRecords.length,
+      错误: errorRecords.length,
+      详细: {
+        validRecords,
+        skippedRecords,
+        errorRecords
+      }
+    });
+
+  } catch (error) {
+    console.error('Excel 导入过程出错:', error);
+    showNotification('Excel 文件导入失败：' + error.message, 'error');
+  }
+}
+
+// 格式化日期值 - 完全避免时区问题
+function formatDateValue(dateValue) {
+  if (!dateValue) return null;
+
+  try {
+    // =======================================================
+    // 核心原则：把日期当作纯日历值处理，不做任何时区转换
+    // 目标：输入 "2024-01-15" → 输出 "2024-01-15"
+    // =======================================================
+
+    // 1. 如果已经是 YYYY-MM-DD 格式字符串 - 直接返回！
+    if (typeof dateValue === 'string') {
+      const trimmed = dateValue.trim();
+      
+      // 1.1 完美匹配 YYYY-MM-DD → 直接返回
+      const matchISO = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (matchISO) {
+        return `${matchISO[1]}-${matchISO[2]}-${matchISO[3]}`;
+      }
+      
+      // 1.2 匹配 YYYY/MM/DD 格式（Windows常见）
+      const matchSlash = trimmed.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+      if (matchSlash) {
+        const y = parseInt(matchSlash[1], 10);
+        const m = parseInt(matchSlash[2], 10);
+        const d = parseInt(matchSlash[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      
+      // 1.3 匹配 YYYY/M/D 格式（Excel常见）
+      const matchShort = trimmed.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+      if (matchShort) {
+        const y = parseInt(matchShort[1], 10);
+        const m = parseInt(matchShort[2], 10);
+        const d = parseInt(matchShort[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      
+      // 1.4 匹配 M/D/YYYY 格式（美国格式）
+      const matchUS = trimmed.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{4})$/);
+      if (matchUS) {
+        const m = parseInt(matchUS[1], 10);
+        const d = parseInt(matchUS[2], 10);
+        const y = parseInt(matchUS[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      
+      // 1.5 尝试从字符串中提取数字
+      const numbers = trimmed.match(/\d+/g);
+      if (numbers && numbers.length >= 3) {
+        // 尝试各种组合：年-月-日
+        let year, month, day;
+        
+        // 如果有大于1000的数字，应该是年份
+        const yearIdx = numbers.findIndex(n => parseInt(n) > 1000);
+        if (yearIdx !== -1) {
+          year = parseInt(numbers[yearIdx], 10);
+          // 其他两个是月日
+          const others = numbers.filter((_, i) => i !== yearIdx).map(n => parseInt(n, 10));
+          // 假设：较大的（小于13）是月，较小的是日
+          if (others.length >= 2) {
+            // 第一个是月，第二个是日
+            month = Math.min(others[0], others[1]);
+            day = Math.max(others[0], others[1]);
+            if (month <= 12 && day <= 31) {
+              return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+          }
+        }
+      }
+      
+      // 1.6 其他字符串 - 谨慎使用parseDateSafe（仍可能有问题）
+      // 不使用new Date，直接手动解析
+      return null;
+    }
+
+    // 2. 如果是 Date 对象 - 必须使用UTC方法提取
+    if (dateValue instanceof Date) {
+      if (!isNaN(dateValue.getTime())) {
+        // 关键：始终使用UTC方法，避免本地时区
+        const year = dateValue.getUTCFullYear();
+        const month = dateValue.getUTCMonth() + 1;
+        const day = dateValue.getUTCDate();
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+      return null;
+    }
+
+    // 3. 如果是数字（Excel 日期序列号）
+    // 例如：45321 表示 2024-01-15
+    if (typeof dateValue === 'number' && dateValue > 0 && dateValue < 100000) {
+      // 使用 SheetJS 的解析方法，但用 UTC 方式
+      const dateCode = XLSX.SSF.parse_date_code(dateValue);
+      if (dateCode && dateCode.y !== undefined && 
+          dateCode.m !== undefined && 
+          dateCode.d !== undefined) {
+        // 直接从dateCode提取，不创建Date对象
+        const y = dateCode.y;
+        const m = dateCode.m;
+        const d = dateCode.d;
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      return null;
+    }
+
+    // 4. 其他情况
+    return null;
+  } catch (error) {
+    console.error('日期格式化失败:', error);
+    return null;
+  }
+}
+
+// ==================== 批量选择与删除功能 ====================
+
+// 存储选中的记录ID
+let selectedRecordIds = new Set();
+
+// 撤销栈（存储最近删除的记录，最多支持10条）
+let deletionUndoStack = [];
+
+/**
+ * 初始化批量选择功能
+ */
+function initBatchSelection() {
+  const batchControls = document.getElementById('batch-controls');
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  const batchDeleteBtn = document.getElementById('batch-delete-btn');
+  const batchCancelBtn = document.getElementById('batch-cancel-btn');
+  
+  // 全选复选框事件
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.record-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+        const recordId = parseFloat(checkbox.getAttribute('data-id'));
+        if (this.checked) {
+          selectedRecordIds.add(recordId);
+        } else {
+          selectedRecordIds.delete(recordId);
+        }
+      });
+      updateBatchControls();
+      updateTableSelection();
+    });
+  }
+  
+  // 批量删除按钮事件
+  if (batchDeleteBtn) {
+    batchDeleteBtn.addEventListener('click', batchDeleteRecords);
+  }
+  
+  // 取消选择按钮事件
+  if (batchCancelBtn) {
+    batchCancelBtn.addEventListener('click', cancelSelection);
+  }
+  
+  console.log('批量选择功能初始化完成！');
+}
+
+/**
+ * 更新批量操作控制栏的显示状态
+ * 关键修复：使用 classList.toggle 而不是直接修改 style.display，
+ * 避免触发 CSS 动画反复播放导致的布局抖动
+ */
+function updateBatchControls() {
+  const batchControls = document.getElementById('batch-controls');
+  const selectedCount = document.getElementById('selected-count');
+  const selectAllCheckbox = document.getElementById('select-all-checkbox');
+  
+  if (!batchControls) return;
+  
+  // 使用类名切换显示状态，避免触发动画
+  const isVisible = selectedRecordIds.size > 0;
+  
+  // 避免频繁的DOM操作：只有当状态确实改变时才更新
+  const currentlyVisible = batchControls.classList.contains('visible');
+  if (isVisible !== currentlyVisible) {
+    batchControls.classList.toggle('visible', isVisible);
+  }
+  
+  // 更新选中计数
+  if (selectedCount) {
+    selectedCount.textContent = `已选择 ${selectedRecordIds.size} 条记录`;
+  }
+  
+  // 更新全选复选框状态
+  const totalCheckboxes = document.querySelectorAll('.record-checkbox').length;
+  if (selectAllCheckbox) {
+    selectAllCheckbox.checked = selectedRecordIds.size === totalCheckboxes && totalCheckboxes > 0;
+  }
+}
+
+/**
+ * 更新表格中的选中状态（高亮选中的行）
+ */
+function updateTableSelection() {
+  const rows = document.querySelectorAll('#history-table tr');
+  rows.forEach(row => {
+    const checkbox = row.querySelector('.record-checkbox');
+    if (checkbox) {
+      const recordId = parseFloat(checkbox.getAttribute('data-id'));
+      if (selectedRecordIds.has(recordId)) {
+        row.classList.add('selected');
+      } else {
+        row.classList.remove('selected');
+      }
+    }
+  });
+}
+
+/**
+ * 取消所有选择
+ */
+function cancelSelection() {
+  selectedRecordIds.clear();
+  const checkboxes = document.querySelectorAll('.record-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  updateBatchControls();
+  updateTableSelection();
+}
+
+/**
+ * 批量删除选中的记录
+ */
+function batchDeleteRecords() {
+  if (selectedRecordIds.size === 0) {
+    showNotification('请先选择要删除的记录', 'warning');
+    return;
+  }
+  
+  const count = selectedRecordIds.size;
+  const message = count === 1 
+    ? '确定删除这 1 条记录吗？' 
+    : `确定删除这 ${count} 条记录吗？`;
+  
+  if (!confirm(message)) {
+    return;
+  }
+  
+  // 保存到撤销栈
+  const recordsToDelete = [];
+  selectedRecordIds.forEach(id => {
+    const record = materialRecords.find(r => r.id === id);
+    if (record) {
+      recordsToDelete.push({...record}); // 深拷贝
+    }
+  });
+  
+  // 最多保存10条撤销记录
+  deletionUndoStack.push(...recordsToDelete);
+  if (deletionUndoStack.length > 10) {
+    deletionUndoStack = deletionUndoStack.slice(-10);
+  }
+  
+  // 执行删除
+  const originalLength = materialRecords.length;
+  materialRecords = materialRecords.filter(r => !selectedRecordIds.has(r.id));
+  const deletedCount = originalLength - materialRecords.length;
+  
+  if (deletedCount > 0) {
+    // 保存数据
+    save();
+    
+    // 清空选择
+    cancelSelection();
+    
+    // 更新UI
+    renderTable();
+    updateStats();
+    renderCharts();
+    
+    // 显示撤销提示
+    showNotification(
+      `已删除 ${deletedCount} 条记录 <button onclick="undoLastBatchDeletion()" class="undo-btn">撤销</button>`,
+      'success',
+      10000 // 10秒后消失
+    );
+    
+    console.log(`批量删除完成：删除了 ${deletedCount} 条记录`);
+  } else {
+    showNotification('删除失败，未找到匹配的记录', 'error');
+  }
+}
+
+/**
+ * 撤销最后一次批量删除
+ */
+function undoLastBatchDeletion() {
+  if (deletionUndoStack.length === 0) {
+    showNotification('没有可撤销的删除操作', 'info');
+    return;
+  }
+  
+  // 获取最近一次批量删除的记录（栈中的最后N条）
+  const lastBatchSize = Math.min(5, deletionUndoStack.length); // 假设最多一次删5条
+  const recordsToRestore = deletionUndoStack.splice(-lastBatchSize, lastBatchSize);
+  
+  // 恢复记录
+  let restoredCount = 0;
+  recordsToRestore.forEach(deletedRecord => {
+    // 检查是否已存在（可能被重新添加了）
+    const exists = materialRecords.some(r => r.date === deletedRecord.date);
+    if (!exists) {
+      // 生成新的ID
+      deletedRecord.id = Date.now() + Math.random();
+      materialRecords.push(deletedRecord);
+      restoredCount++;
+    }
+  });
+  
+  if (restoredCount > 0) {
+    // 保存数据
+    save();
+    
+    // 更新UI
+    renderTable();
+    updateStats();
+    renderCharts();
+    
+    showNotification(`已撤销删除，成功恢复了 ${restoredCount} 条记录`, 'success');
+    console.log(`撤销删除完成：恢复了 ${restoredCount} 条记录`);
+  } else {
+    showNotification('撤销失败，记录可能已被重新添加', 'warning');
+  }
+}
+
+/**
+ * 全选/取消全选功能
+ */
+window.toggleSelectAll = function(checked) {
+  const checkboxes = document.querySelectorAll('.record-checkbox');
+  
+  // 一次性更新所有状态，避免重复操作
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = checked;
+    const recordId = parseFloat(checkbox.getAttribute('data-id'));
+    if (checked) {
+      selectedRecordIds.add(recordId);
+    } else {
+      selectedRecordIds.delete(recordId);
+    }
+  });
+  
+  // 只调用一次更新
+  updateTableSelection();
+  updateBatchControls();
+};
+
+/**
+ * 处理单个记录的选择状态变化
+ * 优化：避免不必要的 DOM 操作，减少浏览器重排
+ */
+function handleRecordSelection(checkbox) {
+  const recordId = parseFloat(checkbox.getAttribute('data-id'));
+  
+  if (checkbox.checked) {
+    selectedRecordIds.add(recordId);
+    // 直接更新表格行的选中状态
+    checkbox.closest('tr').classList.add('selected');
+  } else {
+    selectedRecordIds.delete(recordId);
+    checkbox.closest('tr').classList.remove('selected');
+  }
+  
+  // 更新批量控制栏（只更新计数和全选状态）
+  updateBatchControls();
+  
+  // 同步更新表头全选框状态（在 updateBatchControls 中处理）
+}
+
+// 在表格渲染完成后，更新批量控制栏和全选状态
+const originalRenderTableForBatch = renderTable;
+renderTable = function() {
+  originalRenderTableForBatch();
+  
+  // 高亮已选中的行
+  updateTableSelection();
+  
+  // 更新批量控制栏（已经包含全选状态）
+  updateBatchControls();
+};
+
 // 初始化所有新功能
 document.addEventListener('DOMContentLoaded', function() {
   // 稍延迟以确保 DOM 完全加载
@@ -2017,6 +3390,9 @@ document.addEventListener('DOMContentLoaded', function() {
     initKeyboardShortcuts();
     initFilters();
     enhanceCharts();
+    initBatchInput();
+    initExcelFeatures();
+    initBatchSelection();
     console.log('新增 UI 功能初始化完成！');
   }, 100);
 });

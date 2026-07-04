@@ -809,6 +809,256 @@ kbd {
     margin: 0 2px;
 }
 
+/* ==================== Excel Template Styles ==================== */
+.template-controls {
+    background: var(--bg-light);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.template-controls h3 {
+    color: var(--text);
+    margin-bottom: 16px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.template-controls h3 i {
+    color: #217346;
+}
+
+.template-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.template-btn {
+    background: linear-gradient(135deg, #217346, #1e8449);
+    padding: 12px 24px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.template-btn:hover {
+    background: linear-gradient(135deg, #1e8449, #196f3d);
+    transform: translateY(-2px);
+}
+
+.import-excel-btn {
+    background: linear-gradient(135deg, #0b7d4d, #0a6b3c);
+    padding: 12px 24px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.import-excel-btn:hover {
+    background: linear-gradient(135deg, #0a6b3c, #095230);
+    transform: translateY(-2px);
+}
+
+/* ==================== Batch Selection Styles ==================== */
+.batch-controls {
+    display: none; /* 默认隐藏，用 JS 控制显隐 */
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    margin-top: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+    transition: opacity 0.2s ease, transform 0.2s ease; /* 只过渡透明度和位置，避免布局重排 */
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+}
+
+/* 显示状态 - 用 JS 添加/移除该类，避免动画反复触发 */
+.batch-controls.visible {
+    display: flex;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.batch-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.select-all-label:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.select-all-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: white;
+}
+
+.selected-count {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.batch-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.batch-action-btn {
+    padding: 10px 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.batch-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.batch-action-btn.danger {
+    background: rgba(239, 68, 68, 0.8);
+    border-color: #dc2626;
+}
+
+.batch-action-btn.danger:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+}
+
+/* Table selection column */
+.select-column {
+    width: 50px;
+    min-width: 50px;
+    max-width: 50px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.select-column input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #667eea;
+    display: block;
+    margin: 0 auto;
+}
+
+/* 表格行过渡 - 只应用于 background-color，避免布局重排 */
+table tbody tr {
+    transition: background-color 0.15s ease-out;
+}
+
+table tbody tr.selected {
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+table tbody tr:hover {
+    background: var(--bg-light);
+}
+
+table tbody tr.selected:hover {
+    background: rgba(102, 126, 234, 0.15) !important;
+}
+
+@media (max-width: 768px) {
+    .batch-controls {
+        flex-direction: column;
+        gap: 16px;
+        padding: 12px 16px;
+    }
+    
+    .batch-info,
+    .batch-actions {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .batch-actions {
+        flex-wrap: wrap;
+    }
+    
+    .batch-action-btn {
+        flex: 1;
+        min-width: 120px;
+        justify-content: center;
+    }
+}
+
+/* Undo button in notification */
+.undo-btn {
+    margin-left: 12px;
+    padding: 6px 16px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.undo-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.template-hint {
+    color: var(--text-muted);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.template-hint i {
+    color: var(--info);
+}
+
+@media (max-width: 768px) {
+    .template-buttons {
+        flex-direction: column;
+    }
+    
+    .template-btn,
+    .import-excel-btn {
+        width: 100%;
+    }
+}
+
 /* ==================== Floating Action Button ==================== */
 .fab-container {
     position: fixed;
@@ -1099,4 +1349,282 @@ kbd {
     font-size: 11px;
     font-weight: 700;
     margin-left: 4px;
+}
+
+/* ==================== Batch Input Styles ==================== */
+.input-mode-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.mode-tab {
+    padding: 12px 24px;
+    background: var(--bg-light);
+    color: var(--text-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.mode-tab:hover {
+    background: var(--hover-bg);
+    color: var(--text);
+    border-color: var(--primary-light);
+    transform: translateY(-2px);
+}
+
+.mode-tab.active {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 16px var(--shadow-color);
+}
+
+.batch-config-section {
+    background: var(--bg-light);
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.batch-config-section h3 {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+}
+
+.batch-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.quick-btn {
+    padding: 10px 12px;
+    background: var(--input-bg);
+    color: var(--text-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.quick-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.batch-table-section {
+    margin-bottom: 20px;
+}
+
+.batch-table-section h3 {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+}
+
+.batch-table-container {
+    max-height: 500px;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--card);
+}
+
+.batch-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.batch-table thead {
+    position: sticky;
+    top: 0;
+    background: var(--bg-light);
+    z-index: 10;
+}
+
+.batch-table th {
+    padding: 12px 10px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 13px;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.batch-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: center;
+    font-size: 13px;
+}
+
+.batch-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.batch-table tbody tr:hover {
+    background: var(--bg-light);
+}
+
+.batch-table input[type="date"],
+.batch-table input[type="number"],
+.batch-table select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text);
+    font-size: 13px;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.batch-table input[type="date"]:focus,
+.batch-table input[type="number"]:focus,
+.batch-table select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.batch-table input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.batch-subtotal {
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 14px;
+}
+
+.batch-row-delete {
+    padding: 6px 10px;
+    background: transparent;
+    color: var(--error);
+    border: 1px solid var(--error);
+    border-radius: 6px;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.batch-row-delete:hover {
+    background: var(--error);
+    color: white;
+    transform: scale(1.05);
+}
+
+.batch-empty-hint {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    background: var(--bg-light);
+    border-radius: 12px;
+    border: 2px dashed var(--border-color);
+    margin-top: 12px;
+}
+
+.batch-empty-hint i {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+    opacity: 0.6;
+}
+
+.batch-empty-hint p {
+    font-size: 15px;
+    margin: 0;
+}
+
+.batch-summary-section {
+    background: var(--bg-light);
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.batch-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px;
+    background: var(--card);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.summary-item:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.summary-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.summary-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.batch-actions-section {
+    margin-top: 20px;
+}
+
+/* Mobile responsive for batch table */
+@media (max-width: 768px) {
+    .batch-table th,
+    .batch-table td {
+        padding: 6px 4px;
+        font-size: 11px;
+    }
+    
+    .batch-table input[type="date"],
+    .batch-table input[type="number"],
+    .batch-table select {
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+    
+    .batch-table-container {
+        max-height: 400px;
+    }
+    
+    .batch-config-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .summary-value {
+        font-size: 20px;
+    }
 }
