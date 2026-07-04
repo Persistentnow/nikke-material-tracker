@@ -2331,11 +2331,15 @@ function generateBatchRows() {
       if (!hasExistingRecord) {
         batchRows.push({
           date: dateStr,
-          stage: defaultStage,
+          stage1: defaultStage,
+          stage2: defaultStage,
+          stage3: defaultStage,
           m1: 0,
           m2: 0,
           m3: 0,
-          parts: STAGE_PARTS[defaultStage] || 0,
+          parts1: STAGE_PARTS[defaultStage] || 0,
+          parts2: STAGE_PARTS[defaultStage] || 0,
+          parts3: STAGE_PARTS[defaultStage] || 0,
           isDouble: false
         });
         console.log(`生成记录行: ${dateStr}`);
@@ -2370,11 +2374,15 @@ function generateBatchRows() {
       if (!hasExistingRecord) {
         batchRows.push({
           date: dateStr,
-          stage: defaultStage,
+          stage1: defaultStage,
+          stage2: defaultStage,
+          stage3: defaultStage,
           m1: 0,
           m2: 0,
           m3: 0,
-          parts: STAGE_PARTS[defaultStage] || 0,
+          parts1: STAGE_PARTS[defaultStage] || 0,
+          parts2: STAGE_PARTS[defaultStage] || 0,
+          parts3: STAGE_PARTS[defaultStage] || 0,
           isDouble: false
         });
       }
@@ -2433,72 +2441,69 @@ function renderBatchTable() {
     });
     tdDate.appendChild(dateInput);
     
-    // 阶段
-    const tdStage = document.createElement('td');
-    const stageSelect = document.createElement('select');
-    ['5', '6', '7'].forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = `${s}阶段`;
-      if (row.stage === s) opt.selected = true;
-      stageSelect.appendChild(opt);
-    });
-    stageSelect.addEventListener('change', function() {
-      batchRows[index].stage = this.value;
-      updateBatchSummary();
-    });
-    tdStage.appendChild(stageSelect);
+    function createAcquisitionCell(acqIndex) {
+      const td = document.createElement('td');
+      td.className = 'batch-acq-cell';
+      
+      const container = document.createElement('div');
+      container.className = 'batch-acq-container';
+      
+      // 模组输入
+      const mInput = document.createElement('input');
+      mInput.type = 'number';
+      mInput.min = '0';
+      mInput.value = row[`m${acqIndex}`];
+      mInput.placeholder = '模组';
+      mInput.className = 'batch-acq-modules';
+      mInput.addEventListener('input', function() {
+        batchRows[index][`m${acqIndex}`] = +this.value || 0;
+        updateRowSubtotal(tr, batchRows[index]);
+        updateBatchSummary();
+      });
+      container.appendChild(mInput);
+      
+      // 阶段选择
+      const stageSelect = document.createElement('select');
+      stageSelect.className = 'batch-acq-stage';
+      ['5', '6', '7'].forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = `${s}阶`;
+        if (row[`stage${acqIndex}`] === s) opt.selected = true;
+        stageSelect.appendChild(opt);
+      });
+      stageSelect.addEventListener('change', function() {
+        batchRows[index][`stage${acqIndex}`] = this.value;
+        const defaultParts = STAGE_PARTS[this.value] || 0;
+        batchRows[index][`parts${acqIndex}`] = defaultParts;
+        const partsInput = container.querySelector('.batch-acq-parts');
+        if (partsInput) partsInput.value = defaultParts;
+        updateRowSubtotal(tr, batchRows[index]);
+        updateBatchSummary();
+      });
+      container.appendChild(stageSelect);
+      
+      // 零件输入
+      const partsInput = document.createElement('input');
+      partsInput.type = 'number';
+      partsInput.min = '0';
+      partsInput.value = row[`parts${acqIndex}`];
+      partsInput.placeholder = '零件';
+      partsInput.className = 'batch-acq-parts';
+      partsInput.addEventListener('input', function() {
+        batchRows[index][`parts${acqIndex}`] = +this.value || 0;
+        updateRowSubtotal(tr, batchRows[index]);
+        updateBatchSummary();
+      });
+      container.appendChild(partsInput);
+      
+      td.appendChild(container);
+      return td;
+    }
     
-    // 第一次获取
-    const tdM1 = document.createElement('td');
-    const m1Input = document.createElement('input');
-    m1Input.type = 'number';
-    m1Input.min = '0';
-    m1Input.value = row.m1;
-    m1Input.addEventListener('input', function() {
-      batchRows[index].m1 = +this.value || 0;
-      updateRowSubtotal(tr, batchRows[index]);
-      updateBatchSummary();
-    });
-    tdM1.appendChild(m1Input);
-    
-    // 第二次获取
-    const tdM2 = document.createElement('td');
-    const m2Input = document.createElement('input');
-    m2Input.type = 'number';
-    m2Input.min = '0';
-    m2Input.value = row.m2;
-    m2Input.addEventListener('input', function() {
-      batchRows[index].m2 = +this.value || 0;
-      updateRowSubtotal(tr, batchRows[index]);
-      updateBatchSummary();
-    });
-    tdM2.appendChild(m2Input);
-    
-    // 第三次获取
-    const tdM3 = document.createElement('td');
-    const m3Input = document.createElement('input');
-    m3Input.type = 'number';
-    m3Input.min = '0';
-    m3Input.value = row.m3;
-    m3Input.addEventListener('input', function() {
-      batchRows[index].m3 = +this.value || 0;
-      updateRowSubtotal(tr, batchRows[index]);
-      updateBatchSummary();
-    });
-    tdM3.appendChild(m3Input);
-    
-    // 零件
-    const tdParts = document.createElement('td');
-    const partsInput = document.createElement('input');
-    partsInput.type = 'number';
-    partsInput.min = '0';
-    partsInput.value = row.parts;
-    partsInput.addEventListener('input', function() {
-      batchRows[index].parts = +this.value || 0;
-      updateBatchSummary();
-    });
-    tdParts.appendChild(partsInput);
+    const tdAcq1 = createAcquisitionCell(1);
+    const tdAcq2 = createAcquisitionCell(2);
+    const tdAcq3 = createAcquisitionCell(3);
     
     // 双倍
     const tdDouble = document.createElement('td');
@@ -2507,6 +2512,7 @@ function renderBatchTable() {
     doubleCheckbox.checked = row.isDouble;
     doubleCheckbox.addEventListener('change', function() {
       batchRows[index].isDouble = this.checked;
+      updateRowSubtotal(tr, batchRows[index]);
       updateBatchSummary();
     });
     tdDouble.appendChild(doubleCheckbox);
@@ -2529,11 +2535,9 @@ function renderBatchTable() {
     tdDelete.appendChild(deleteBtn);
     
     tr.appendChild(tdDate);
-    tr.appendChild(tdStage);
-    tr.appendChild(tdM1);
-    tr.appendChild(tdM2);
-    tr.appendChild(tdM3);
-    tr.appendChild(tdParts);
+    tr.appendChild(tdAcq1);
+    tr.appendChild(tdAcq2);
+    tr.appendChild(tdAcq3);
     tr.appendChild(tdDouble);
     tr.appendChild(tdSubtotal);
     tr.appendChild(tdDelete);
@@ -2544,11 +2548,13 @@ function renderBatchTable() {
 
 function updateRowSubtotal(tr, row) {
   const totalModules = row.m1 + row.m2 + row.m3;
-  const partsToMod = (row.parts * (row.isDouble ? 2 : 1) / 100).toFixed(2);
+  const totalParts = (row.parts1 + row.parts2 + row.parts3) * (row.isDouble ? 2 : 1);
+  const partsToMod = (totalParts / 100).toFixed(2);
+  const subtotalText = `${totalModules}模 + ${(totalParts).toFixed(0)}件`;
   const subtotal = document.createElement('span');
-  subtotal.textContent = totalModules;
+  subtotal.textContent = subtotalText;
   
-  const subtotalTd = tr.querySelectorAll('td')[7];
+  const subtotalTd = tr.querySelector('.batch-subtotal');
   if (subtotalTd) {
     subtotalTd.innerHTML = '';
     subtotalTd.appendChild(subtotal);
@@ -2566,7 +2572,7 @@ function updateBatchSummary() {
 
   batchRows.forEach(row => {
     totalModules += row.m1 + row.m2 + row.m3;
-    totalParts += row.parts * (row.isDouble ? 2 : 1);
+    totalParts += (row.parts1 + row.parts2 + row.parts3) * (row.isDouble ? 2 : 1);
   });
 
   if (summaryCount) summaryCount.textContent = batchRows.length;
@@ -2580,12 +2586,17 @@ function fillDefaultParts() {
   const defaultParts = STAGE_PARTS[defaultStage] || 0;
   
   batchRows.forEach(row => {
-    row.parts = defaultParts;
+    row.stage1 = defaultStage;
+    row.stage2 = defaultStage;
+    row.stage3 = defaultStage;
+    row.parts1 = defaultParts;
+    row.parts2 = defaultParts;
+    row.parts3 = defaultParts;
   });
 
   renderBatchTable();
   updateBatchSummary();
-  showNotification(`已填充 ${defaultStage}阶段的默认零件数量: ${defaultParts}`, 'success');
+  showNotification(`已填充 ${defaultStage}阶段的默认零件数量: ${defaultParts} / 每次获取`, 'success');
 }
 
 function copyModulesToAll() {
@@ -2594,7 +2605,6 @@ function copyModulesToAll() {
     return;
   }
 
-  // 使用第一行的模组数量作为模板
   const template = batchRows[0];
   
   if (template.m1 === 0 && template.m2 === 0 && template.m3 === 0) {
@@ -2607,12 +2617,18 @@ function copyModulesToAll() {
       row.m1 = template.m1;
       row.m2 = template.m2;
       row.m3 = template.m3;
+      row.stage1 = template.stage1;
+      row.stage2 = template.stage2;
+      row.stage3 = template.stage3;
+      row.parts1 = template.parts1;
+      row.parts2 = template.parts2;
+      row.parts3 = template.parts3;
     }
   });
 
   renderBatchTable();
   updateBatchSummary();
-  showNotification('已将第一行的模组数量复制到所有行', 'success');
+  showNotification('已将第一行的模组、阶段和零件数量复制到所有行', 'success');
 }
 
 function clearAllBatchRows() {
@@ -2652,17 +2668,28 @@ function bindBatchSubmit() {
         }
 
         // 验证必填字段
-        if (!row.date || !row.stage) {
+        if (!row.date || !row.stage1 || !row.stage2 || !row.stage3) {
           return;
         }
 
-        const finalParts = row.isDouble ? row.parts * 2 : row.parts;
+        const finalParts1 = row.isDouble ? row.parts1 * 2 : row.parts1;
+        const finalParts2 = row.isDouble ? row.parts2 * 2 : row.parts2;
+        const finalParts3 = row.isDouble ? row.parts3 * 2 : row.parts3;
+        const totalParts = finalParts1 + finalParts2 + finalParts3;
         const totalModules = row.m1 + row.m2 + row.m3;
-        const partsToMod = (finalParts / 100).toFixed(2);
+        const partsToMod = (totalParts / 100).toFixed(2);
         const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
         
-        // 根据阶段计算期望产出
-        const stageExpectation = getStageExpectation(row.stage, row.isDouble);
+        // 确定主阶段
+        let mainStage = row.stage1;
+        if (row.stage1 !== row.stage2 || row.stage1 !== row.stage3) {
+          mainStage = 'mixed';
+        }
+        
+        // 根据三个阶段分别计算期望产出之和
+        const stageExpectation = getStageExpectation(row.stage1, row.isDouble) +
+                                 getStageExpectation(row.stage2, row.isDouble) +
+                                 getStageExpectation(row.stage3, row.isDouble);
         const diff = (totalModules - stageExpectation).toFixed(2);
 
         newRecords.push({
@@ -2671,8 +2698,14 @@ function bindBatchSubmit() {
           m1: row.m1,
           m2: row.m2,
           m3: row.m3,
-          parts: finalParts,
-          stage: row.stage,
+          stage1: row.stage1,
+          stage2: row.stage2,
+          stage3: row.stage3,
+          parts1: finalParts1,
+          parts2: finalParts2,
+          parts3: finalParts3,
+          parts: totalParts,
+          stage: mainStage,
           isDouble: row.isDouble,
           totalModules: totalModules,
           partsToMod: partsToMod,
@@ -2768,65 +2801,78 @@ function exportExcelTemplate() {
   const templateData = [
     {
       '日期': '2024-01-01',
-      '阶段': 7,
-      '第一次获取': 0,
-      '第二次获取': 0,
-      '第三次获取': 0,
-      '零件数量': 111,
+      '第一次模组': 0,
+      '第一次阶段': 7,
+      '第一次零件': 111,
+      '第二次模组': 0,
+      '第二次阶段': 7,
+      '第二次零件': 111,
+      '第三次模组': 0,
+      '第三次阶段': 7,
+      '第三次零件': 111,
       '是否双倍': '否'
     },
     {
       '日期': '2024-01-02',
-      '阶段': 7,
-      '第一次获取': 1,
-      '第二次获取': 2,
-      '第三次获取': 0,
-      '零件数量': 111,
+      '第一次模组': 1,
+      '第一次阶段': 7,
+      '第一次零件': 111,
+      '第二次模组': 2,
+      '第二次阶段': 6,
+      '第二次零件': 105,
+      '第三次模组': 0,
+      '第三次阶段': 7,
+      '第三次零件': 111,
       '是否双倍': '是'
     },
     {
       '日期': '2024-01-03',
-      '阶段': 6,
-      '第一次获取': 2,
-      '第二次获取': 1,
-      '第三次获取': 1,
-      '零件数量': 105,
+      '第一次模组': 2,
+      '第一次阶段': 6,
+      '第一次零件': 105,
+      '第二次模组': 1,
+      '第二次阶段': 5,
+      '第二次零件': 81,
+      '第三次模组': 1,
+      '第三次阶段': 7,
+      '第三次零件': 111,
       '是否双倍': '否'
     }
   ];
 
   const ws = XLSX.utils.json_to_sheet(templateData);
 
-  // 设置列宽
   ws['!cols'] = [
-    { wch: 12 },  // 日期
-    { wch: 8 },   // 阶段
-    { wch: 10 },  // 第一次获取
-    { wch: 10 },  // 第二次获取
-    { wch: 10 },  // 第三次获取
-    { wch: 10 },  // 零件数量
-    { wch: 10 }   // 是否双倍
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 }
   ];
 
-  // 创建工作簿
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '材料记录模板');
 
-  // 添加使用说明 Sheet
   const instructions = [
     { 说明: 'NIKKE材料记录工具 - Excel 导入模板' },
     { 说明: '' },
     { 说明: '【填写说明】' },
     { 说明: '1. 日期：格式为 YYYY-MM-DD，例如 2024-01-01' },
-    { 说明: '2. 阶段：填写 5、6 或 7' },
-    { 说明: '3. 第一次获取 ~ 第三次获取：填写每次获取的模组数量（整数）' },
-    { 说明: '4. 零件数量：该次获取的零件数量（整数）' },
-    {说明: '5. 是否双倍：填写 "是" 或 "否"' },
+    { 说明: '2. 每次获取包含三个字段：模组、阶段、零件' },
+    { 说明: '3. 阶段：填写 5、6 或 7，默认为 7' },
+    { 说明: '4. 零件数量根据阶段自动设置：5阶段=81, 6阶段=105, 7阶段=111' },
+    { 说明: '5. 是否双倍：填写 "是" 或 "否"' },
     { 说明: '' },
     { 说明: '【注意事项】' },
     { 说明: '- 日期列必填，其他列可为空' },
     { 说明: '- 阶段默认为7阶段（111零件）' },
-    { 说明: '- 零件数量根据阶段自动设置：5阶段=81, 6阶段=105, 7阶段=111' },
+    { 说明: '- 零件可手动修改，不强制与阶段对应' },
     { 说明: '- "是"表示双倍产出，零件数量会自动翻倍' },
     { 说明: '- 已有记录的日期会被跳过，不会重复导入' },
     { 说明: '' },
@@ -2873,16 +2919,43 @@ function importExcelData(arrayBuffer) {
       const rowNum = index + 2; // Excel 行号（从2开始，因为第1行是表头）
 
       try {
-        // 提取数据
+        // 提取数据 - 支持新格式和旧格式
         const date = row['日期'];
-        const stage = parseInt(row['阶段']) || 7;
-        const m1 = parseInt(row['第一次获取']) || 0;
-        const m2 = parseInt(row['第二次获取']) || 0;
-        const m3 = parseInt(row['第三次获取']) || 0;
-        const parts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 111;
         const isDouble = String(row['是否双倍']).trim().toLowerCase() === '是' || 
                          String(row['是否双倍']).trim() === '1' ||
                          String(row['是否双倍']).trim().toLowerCase() === 'true';
+
+        let m1, m2, m3, stage1, stage2, stage3, parts1, parts2, parts3;
+
+        // 检测是否为新格式（有"第一次阶段"或"第一次零件"列）
+        const hasNewFormat = row['第一次阶段'] !== undefined || row['第一次零件'] !== undefined;
+
+        if (hasNewFormat) {
+          // 新格式：每次获取有独立的模组、阶段、零件
+          m1 = parseInt(row['第一次模组']) || 0;
+          m2 = parseInt(row['第二次模组']) || 0;
+          m3 = parseInt(row['第三次模组']) || 0;
+          stage1 = String(parseInt(row['第一次阶段']) || 7);
+          stage2 = String(parseInt(row['第二次阶段']) || 7);
+          stage3 = String(parseInt(row['第三次阶段']) || 7);
+          parts1 = parseInt(row['第一次零件']) || STAGE_PARTS[stage1] || 111;
+          parts2 = parseInt(row['第二次零件']) || STAGE_PARTS[stage2] || 111;
+          parts3 = parseInt(row['第三次零件']) || STAGE_PARTS[stage3] || 111;
+        } else {
+          // 旧格式：单个阶段 + 单个零件总数 + 三次获取模组数
+          const stage = String(parseInt(row['阶段']) || 7);
+          m1 = parseInt(row['第一次获取']) || 0;
+          m2 = parseInt(row['第二次获取']) || 0;
+          m3 = parseInt(row['第三次获取']) || 0;
+          const totalParts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 111;
+          stage1 = stage;
+          stage2 = stage;
+          stage3 = stage;
+          const avgParts = Math.round(totalParts / 3);
+          parts1 = avgParts;
+          parts2 = avgParts;
+          parts3 = totalParts - avgParts * 2;
+        }
 
         // 验证日期格式
         if (!date) {
@@ -2908,13 +2981,24 @@ function importExcelData(arrayBuffer) {
         }
 
         // 计算最终值
-        const finalParts = isDouble ? parts * 2 : parts;
+        const finalParts1 = isDouble ? parts1 * 2 : parts1;
+        const finalParts2 = isDouble ? parts2 * 2 : parts2;
+        const finalParts3 = isDouble ? parts3 * 2 : parts3;
+        const totalParts = finalParts1 + finalParts2 + finalParts3;
         const totalModules = m1 + m2 + m3;
-        const partsToMod = (finalParts / 100).toFixed(2);
+        const partsToMod = (totalParts / 100).toFixed(2);
         const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
 
-        // 根据阶段计算期望产出
-        const stageExpectation = getStageExpectation(stage, isDouble);
+        // 确定主阶段
+        let mainStage = stage1;
+        if (stage1 !== stage2 || stage1 !== stage3) {
+          mainStage = 'mixed';
+        }
+
+        // 根据三个阶段分别计算期望产出之和
+        const stageExpectation = getStageExpectation(stage1, isDouble) +
+                                 getStageExpectation(stage2, isDouble) +
+                                 getStageExpectation(stage3, isDouble);
         const diff = (totalModules - stageExpectation).toFixed(2);
 
         validRecords.push({
@@ -2923,8 +3007,14 @@ function importExcelData(arrayBuffer) {
           m1,
           m2,
           m3,
-          parts: finalParts,
-          stage,
+          stage1,
+          stage2,
+          stage3,
+          parts1: finalParts1,
+          parts2: finalParts2,
+          parts3: finalParts3,
+          parts: totalParts,
+          stage: mainStage,
           isDouble,
           totalModules,
           partsToMod,
@@ -3352,8 +3442,7 @@ window.toggleSelectAll = function(checked) {
  * 处理单个记录的选择状态变化
  * 优化：避免不必要的 DOM 操作，减少浏览器重排
  */
-function handleRecordSelection(checkbox) {
-function handleRecordSelection（checkbox） {
+function  功能 handleRecordSelection(checkbox) {
   const recordId = parseFloat(checkbox.getAttribute('data-id'));
   
   if (checkbox.checked) {
