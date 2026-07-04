@@ -21,15 +21,15 @@ const STORAGE_KEYS = {
 };
 
 const STAGE_EXPECTATIONS = {
-  '5': { normal: 0.55, double: 1.11 },
-  '6': { normal: 0.72, double: 1.44 },
-  '7': { normal: 0.76, double: 1.52 }
+  '5': { normal: 1.66, double: 3.32 },
+  '6': { normal: 2.15, double: 4.31 },
+  '7': { normal: 2.28, double: 4.56 }
 };
 
 const STAGE_PARTS = {
-  '5': 27,
-  '6': 35,
-  '7': 37
+  '5': 81,
+  '6': 105,
+  '7': 111
 };
 
 // ==================== 全局状态 ====================
@@ -71,7 +71,7 @@ function getRecordExpectation(record) {
     return getStageExpectation(record.stage, record.isDouble) * 3;
   }
   
-  return expectations.daily || 0.72;
+  return expectations.daily || 2.15;
 }
 
 function sanitizeHTML(str) {
@@ -197,7 +197,7 @@ doublePartsCheck.addEventListener('change', function () {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('=== 开始初始化NIKKE材料记录工具 ===');
   
-  document.getElementById('record-date').valueAsDate = new Date();
+  document.getElementById('record-date').value = getTodayString();
   
   console.log('1. 加载本地数据...');
   loadData();
@@ -352,7 +352,7 @@ function bindEvents(){
           doubleDaily = STAGE_EXPECTATIONS[stage].double;
           console.log('使用阶段预设值:', { normalDaily, doubleDaily });
         } else {
-          normalDaily = expectations.daily || 0.72;
+          normalDaily = expectations.daily || 2.15;
           doubleDaily = normalDaily * 2;
           console.log('使用默认设置，日期望值:', { normalDaily, doubleDaily });
         }
@@ -473,27 +473,20 @@ function setupDateNavigation() {
     const nextBtn = document.getElementById('next-day');
     
     prevBtn.addEventListener('click', () => {
-        // 从输入字符串直接提取年月日，避免时区问题
         const parts = extractDateParts(dateInput.value);
         if (parts) {
-            // 使用 UTC 日期计算，避免跨天偏移
             const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
             currentDate.setUTCDate(currentDate.getUTCDate() - 1);
-            // 设置为本地时间的对应日期
-            const localDate = new Date(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate());
-            dateInput.valueAsDate = localDate;
+            dateInput.value = formatDate(currentDate);
         }
     });
     
     nextBtn.addEventListener('click', () => {
-        // 从输入字符串直接提取年月日，避免时区问题
         const parts = extractDateParts(dateInput.value);
         if (parts) {
-            // 使用 UTC 日期计算，避免跨天偏移
             const currentDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
             currentDate.setUTCDate(currentDate.getUTCDate() + 1);
             
-            // 不能选择未来日期（基于本地时间）
             const today = new Date();
             const todayParts = {
                 year: today.getFullYear(),
@@ -505,14 +498,12 @@ function setupDateNavigation() {
             const newMonth = currentDate.getUTCMonth() + 1;
             const newDay = currentDate.getUTCDate();
             
-            // 比较年月日，避免时分秒影响
             const isFuture = (newYear > todayParts.year) || 
                              (newYear === todayParts.year && newMonth > todayParts.month) ||
                              (newYear === todayParts.year && newMonth === todayParts.month && newDay > todayParts.day);
             
             if (!isFuture) {
-                const localDate = new Date(newYear, newMonth - 1, newDay);
-                dateInput.valueAsDate = localDate;
+                dateInput.value = formatDate(currentDate);
             }
         }
     });
@@ -939,9 +930,9 @@ function resetForm() {
   
   materialForm.reset();
   doublePartsCheck.checked = false;
-  document.getElementById('record-date').valueAsDate = new Date();
+  document.getElementById('record-date').value = getTodayString();
   
-  // 重置为默认7阶段和37零件
+  // 重置为默认7阶段和111零件
   for (let i = 1; i <= 3; i++) {
     document.getElementById(`stage-${i}`).value = '7';
     document.getElementById(`parts-${i}`).value = STAGE_PARTS['7'];
@@ -2803,39 +2794,39 @@ function exportExcelTemplate() {
       '日期': '2024-01-01',
       '第一次模组': 0,
       '第一次阶段': 7,
-      '第一次零件': 37,
+      '第一次零件': 111,
       '第二次模组': 0,
       '第二次阶段': 7,
-      '第二次零件': 37,
+      '第二次零件': 111,
       '第三次模组': 0,
       '第三次阶段': 7,
-      '第三次零件': 37,
+      '第三次零件': 111,
       '是否双倍': '否'
     },
     {
       '日期': '2024-01-02',
       '第一次模组': 1,
       '第一次阶段': 7,
-      '第一次零件': 37,
+      '第一次零件': 111,
       '第二次模组': 2,
       '第二次阶段': 6,
-      '第二次零件': 35,
+      '第二次零件': 105,
       '第三次模组': 0,
       '第三次阶段': 7,
-      '第三次零件': 37,
+      '第三次零件': 111,
       '是否双倍': '是'
     },
     {
       '日期': '2024-01-03',
       '第一次模组': 2,
       '第一次阶段': 6,
-      '第一次零件': 35,
+      '第一次零件': 105,
       '第二次模组': 1,
       '第二次阶段': 5,
-      '第二次零件': 27,
+      '第二次零件': 81,
       '第三次模组': 1,
       '第三次阶段': 7,
-      '第三次零件': 37,
+      '第三次零件': 111,
       '是否双倍': '否'
     }
   ];
@@ -2866,12 +2857,12 @@ function exportExcelTemplate() {
     { 说明: '1. 日期：格式为 YYYY-MM-DD，例如 2024-01-01' },
     { 说明: '2. 每次获取包含三个字段：模组、阶段、零件' },
     { 说明: '3. 阶段：填写 5、6 或 7，默认为 7' },
-    { 说明: '4. 零件数量根据阶段自动设置：5阶段=27, 6阶段=35, 7阶段=37' },
+    { 说明: '4. 零件数量根据阶段自动设置：5阶段=81, 6阶段=105, 7阶段=111' },
     { 说明: '5. 是否双倍：填写 "是" 或 "否"' },
     { 说明: '' },
     { 说明: '【注意事项】' },
     { 说明: '- 日期列必填，其他列可为空' },
-    { 说明: '- 阶段默认为7阶段（37零件）' },
+    { 说明: '- 阶段默认为7阶段（111零件）' },
     { 说明: '- 零件可手动修改，不强制与阶段对应' },
     { 说明: '- "是"表示双倍产出，零件数量会自动翻倍' },
     { 说明: '- 已有记录的日期会被跳过，不会重复导入' },
@@ -2938,16 +2929,16 @@ function importExcelData(arrayBuffer) {
           stage1 = String(parseInt(row['第一次阶段']) || 7);
           stage2 = String(parseInt(row['第二次阶段']) || 7);
           stage3 = String(parseInt(row['第三次阶段']) || 7);
-          parts1 = parseInt(row['第一次零件']) || STAGE_PARTS[stage1] || 37;
-          parts2 = parseInt(row['第二次零件']) || STAGE_PARTS[stage2] || 37;
-          parts3 = parseInt(row['第三次零件']) || STAGE_PARTS[stage3] || 37;
+          parts1 = parseInt(row['第一次零件']) || STAGE_PARTS[stage1] || 111;
+          parts2 = parseInt(row['第二次零件']) || STAGE_PARTS[stage2] || 111;
+          parts3 = parseInt(row['第三次零件']) || STAGE_PARTS[stage3] || 111;
         } else {
           // 旧格式：单个阶段 + 单个零件总数 + 三次获取模组数
           const stage = String(parseInt(row['阶段']) || 7);
           m1 = parseInt(row['第一次获取']) || 0;
           m2 = parseInt(row['第二次获取']) || 0;
           m3 = parseInt(row['第三次获取']) || 0;
-          const totalParts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 37;
+          const totalParts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 111;
           stage1 = stage;
           stage2 = stage;
           stage3 = stage;
