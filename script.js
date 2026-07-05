@@ -21,9 +21,9 @@ const STORAGE_KEYS = {
 };
 
 const STAGE_EXPECTATIONS = {
-  '5': { normal: 1.66, double: 3.32 },
-  '6': { normal: 2.15, double: 4.31 },
-  '7': { normal: 2.28, double: 4.56 }
+  '5': { normal: 0.5533, double: 1.1067 },
+  '6': { normal: 0.7167, double: 1.4367 },
+  '7': { normal: 0.76, double: 1.52 }
 };
 
 const STAGE_PARTS = {
@@ -50,13 +50,10 @@ function getStageExpectation(stage, isDouble) {
 // 获取记录的总期望产出（兼容新旧数据格式）
 function getRecordExpectation(record) {
   if (record.stageExpectation !== undefined && record.stageExpectation !== null) {
-    // 检查是新数据格式还是旧数据格式
     if (record.stage1 !== undefined) {
-      // 新数据格式，stageExpectation已经是三次之和
       return record.stageExpectation;
     } else {
-      // 旧数据格式，stageExpectation是单次的，需要乘以3
-      return record.stageExpectation * 3;
+      return record.stageExpectation;
     }
   }
   
@@ -71,7 +68,7 @@ function getRecordExpectation(record) {
     return getStageExpectation(record.stage, record.isDouble) * 3;
   }
   
-  return expectations.daily || 2.15;
+  return expectations.daily || 2.28;
 }
 
 function sanitizeHTML(str) {
@@ -187,8 +184,8 @@ doublePartsCheck.addEventListener('change', function () {
   const expectationType = document.getElementById('expectation-type').value;
   
   if (STAGE_EXPECTATIONS[stage1]) {
-    const dailyValue = getStageExpectation(stage1, this.checked);
-    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+    const dailyValue = getStageExpectation(stage1, this.checked) * 3;
+    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue.toFixed(2);
   }
   updateRealTimeCalculation();
 });
@@ -234,8 +231,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const isDouble = doublePartsCheck.checked;
   const expectationInput = document.getElementById('expectation-value');
   const expectType = document.getElementById('expectation-type').value;
-  const dailyValue = getStageExpectation(defaultStage, isDouble);
-  expectationInput.value = expectType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+  const dailyValue = getStageExpectation(defaultStage, isDouble) * 3;
+  expectationInput.value = expectType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue.toFixed(2);
   
   console.log('=== 初始化完成 ===');
 });
@@ -348,11 +345,11 @@ function bindEvents(){
         // 根据阶段获取日期望
         let normalDaily, doubleDaily;
         if (STAGE_EXPECTATIONS[stage]) {
-          normalDaily = STAGE_EXPECTATIONS[stage].normal;
-          doubleDaily = STAGE_EXPECTATIONS[stage].double;
+          normalDaily = STAGE_EXPECTATIONS[stage].normal * 3;
+          doubleDaily = STAGE_EXPECTATIONS[stage].double * 3;
           console.log('使用阶段预设值:', { normalDaily, doubleDaily });
         } else {
-          normalDaily = expectations.daily || 2.15;
+          normalDaily = expectations.daily || 2.28;
           doubleDaily = normalDaily * 2;
           console.log('使用默认设置，日期望值:', { normalDaily, doubleDaily });
         }
