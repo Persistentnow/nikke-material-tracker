@@ -5,6 +5,39 @@ const THEMES = {
   NIKKE: 'nikke'
 };
 
+let zoomPluginRegistered = false;
+
+function registerZoomPlugin() {
+    if (typeof Chart === 'undefined') return false;
+
+    const candidates = [
+        window.zoomPlugin,
+        window.ZoomPlugin,
+        window.ChartZoom,
+        window['chartjs-plugin-zoom'],
+        window['chartjs-plugin-zoom'] && window['chartjs-plugin-zoom'].default,
+        window.ChartZoom && window.ChartZoom.default
+    ];
+
+    for (const plugin of candidates) {
+        if (plugin && typeof plugin === 'object' && plugin.id) {
+            try {
+                Chart.register(plugin);
+                zoomPluginRegistered = true;
+                console.log('Chart.js zoom plugin registered successfully');
+                return true;
+            } catch (e) {
+                console.warn('Zoom plugin registration failed:', e);
+            }
+        }
+    }
+
+    console.warn('Zoom plugin not found in window object. Available keys:',
+        Object.keys(window).filter(k => k.toLowerCase().includes('zoom') || k.toLowerCase().includes('chart'))
+    );
+    return false;
+}
+
 // 筛选状态
 let filterState = {
   startDate: '',
@@ -21,15 +54,15 @@ const STORAGE_KEYS = {
 };
 
 const STAGE_EXPECTATIONS = {
-  '5': { normal: 1.66, double: 3.32 },
-  '6': { normal: 2.15, double: 4.31 },
-  '7': { normal: 2.28, double: 4.56 }
+  '5': { normal: 0.5533, double: 1.1067 },
+  '6': { normal: 0.7167, double: 1.4367 },
+  '7': { normal: 0.76, double: 1.52 }
 };
 
 const STAGE_PARTS = {
-  '5': 81,
-  '6': 105,
-  '7': 111
+  '5': 27,
+  '6': 35,
+  '7': 37
 };
 
 // ==================== 全局状态 ====================
@@ -41,6 +74,10 @@ let currentSortBy = 'date';
 let isEditing = false;
 let editingId = null;
 
+// 分页状态
+let currentPage = 1;
+let pageSize = 15;
+
 // ==================== 工具函数 ====================
 function getStageExpectation(stage, isDouble) {
   const expectations = STAGE_EXPECTATIONS[stage];
@@ -50,13 +87,10 @@ function getStageExpectation(stage, isDouble) {
 // 获取记录的总期望产出（兼容新旧数据格式）
 function getRecordExpectation(record) {
   if (record.stageExpectation !== undefined && record.stageExpectation !== null) {
-    // 检查是新数据格式还是旧数据格式
     if (record.stage1 !== undefined) {
-      // 新数据格式，stageExpectation已经是三次之和
       return record.stageExpectation;
     } else {
-      // 旧数据格式，stageExpectation是单次的，需要乘以3
-      return record.stageExpectation * 3;
+      return record.stageExpectation;
     }
   }
   
@@ -71,7 +105,7 @@ function getRecordExpectation(record) {
     return getStageExpectation(record.stage, record.isDouble) * 3;
   }
   
-  return expectations.daily || 2.15;
+  return expectations.daily || 2.28;
 }
 
 function sanitizeHTML(str) {
@@ -187,8 +221,8 @@ doublePartsCheck.addEventListener('change', function () {
   const expectationType = document.getElementById('expectation-type').value;
   
   if (STAGE_EXPECTATIONS[stage1]) {
-    const dailyValue = getStageExpectation(stage1, this.checked);
-    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+    const dailyValue = getStageExpectation(stage1, this.checked) * 3;
+    expectationInput.value = expectationType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue.toFixed(2);
   }
   updateRealTimeCalculation();
 });
@@ -234,8 +268,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const isDouble = doublePartsCheck.checked;
   const expectationInput = document.getElementById('expectation-value');
   const expectType = document.getElementById('expectation-type').value;
-  const dailyValue = getStageExpectation(defaultStage, isDouble);
-  expectationInput.value = expectType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue;
+  const dailyValue = getStageExpectation(defaultStage, isDouble) * 3;
+  expectationInput.value = expectType === 'monthly' ? (dailyValue * 30).toFixed(2) : dailyValue.toFixed(2);
+  
+  console.log('7. 初始化实时预览...');
+  updateRealTimeCalculation();
   
   console.log('=== 初始化完成 ===');
 });
@@ -348,11 +385,11 @@ function bindEvents(){
         // 根据阶段获取日期望
         let normalDaily, doubleDaily;
         if (STAGE_EXPECTATIONS[stage]) {
-          normalDaily = STAGE_EXPECTATIONS[stage].normal;
-          doubleDaily = STAGE_EXPECTATIONS[stage].double;
+          normalDaily = STAGE_EXPECTATIONS[stage].normal * 3;
+          doubleDaily = STAGE_EXPECTATIONS[stage].double * 3;
           console.log('使用阶段预设值:', { normalDaily, doubleDaily });
         } else {
-          normalDaily = expectations.daily || 2.15;
+          normalDaily = expectations.daily || 2.28;
           doubleDaily = normalDaily * 2;
           console.log('使用默认设置，日期望值:', { normalDaily, doubleDaily });
         }
@@ -427,7 +464,7 @@ function setupRealTimeCalculation() {
 }
 
 function updateRealTimeCalculation() {
-    // 重新获取实时预览元素，确保它们存在
+    const realtimeExpectationEl = document.getElementById('realtime-expectation');
     const realtimeProductionEl = document.getElementById('realtime-production');
     const realtimeDifferenceEl = document.getElementById('realtime-difference');
     
@@ -454,16 +491,17 @@ function updateRealTimeCalculation() {
     const totalModules = m1 + m2 + m3;
     const partsToMod = (totalParts / 100).toFixed(2);
     const totalProduction = (totalModules + parseFloat(partsToMod)).toFixed(2);
-    
-    // 差值计算基于模组数量，使用三次获取的期望之和
+    const expectation = totalStageExpectation.toFixed(2);
     const difference = (totalModules - totalStageExpectation).toFixed(2);
     
-    // 更新显示
+    if (realtimeExpectationEl) {
+        realtimeExpectationEl.textContent = expectation;
+    }
     realtimeProductionEl.textContent = totalProduction;
     realtimeDifferenceEl.textContent = difference;
     realtimeDifferenceEl.className = `realtime-value ${parseFloat(difference) >= 0 ? 'difference-positive' : 'difference-negative'}`;
     
-    console.log(`实时预览 - 模组=${totalModules}, 零件=${totalParts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 期望=${totalStageExpectation}, 差值=${difference}`);
+    console.log(`实时预览 - 期望=${expectation}, 模组=${totalModules}, 零件=${totalParts}, 零件换算=${partsToMod}, 总产出=${totalProduction}, 差值=${difference}`);
 }
 
 // 日期导航功能 - 安全处理时区问题
@@ -932,7 +970,7 @@ function resetForm() {
   doublePartsCheck.checked = false;
   document.getElementById('record-date').value = getTodayString();
   
-  // 重置为默认7阶段和111零件
+  // 重置为默认7阶段和37零件
   for (let i = 1; i <= 3; i++) {
     document.getElementById(`stage-${i}`).value = '7';
     document.getElementById(`parts-${i}`).value = STAGE_PARTS['7'];
@@ -1284,22 +1322,74 @@ function updateStats() {
 // ==================== 图表功能 ====================
 let trendChart = null;
 let distributionChart = null;
+let diffDistributionChart = null;
 let currentChartView = 'trend';
+let currentDistView = 'stage';
+let currentChartRange = 'all';
+
+function getFilteredRecordsByRange(records, range) {
+    if (range === 'all') return records;
+    const days = parseInt(range);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return records.filter(r => new Date(r.date) >= cutoff);
+}
 
 function initCharts() {
+    // 注册 zoom 插件（确保 DOM 和脚本加载完成后再注册）
+    registerZoomPlugin();
+
     const trendBtn = document.getElementById('chart-trend');
     const distBtn = document.getElementById('chart-distribution');
-    
+    const rangeBtns = document.querySelectorAll('.chart-range-btn');
+    const distSubBtns = document.querySelectorAll('.dist-sub-btn');
+
     if (trendBtn) {
         trendBtn.addEventListener('click', () => {
             switchChart('trend');
         });
     }
-    
+
     if (distBtn) {
         distBtn.addEventListener('click', () => {
             switchChart('distribution');
         });
+    }
+
+    rangeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            rangeBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentChartRange = btn.dataset.range;
+            renderCharts();
+        });
+    });
+
+    distSubBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            distSubBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentDistView = btn.dataset.dist;
+            renderDistributionCharts();
+        });
+    });
+
+    // 初始化图表视图状态（隐藏分布子标签）
+    switchChart('trend');
+}
+
+function renderDistributionCharts() {
+    const stageCanvas = document.getElementById('distributionChart');
+    const diffCanvas = document.getElementById('diffDistributionChart');
+    
+    if (currentDistView === 'stage') {
+        stageCanvas.style.display = 'block';
+        diffCanvas.style.display = 'none';
+        renderDistributionChart();
+    } else {
+        stageCanvas.style.display = 'none';
+        diffCanvas.style.display = 'block';
+        renderDiffDistributionChart();
     }
 }
 
@@ -1309,16 +1399,17 @@ function switchChart(type) {
     const distBtn = document.getElementById('chart-distribution');
     const trendCanvas = document.getElementById('trendChart');
     const distCanvas = document.getElementById('distributionChart');
-    
-    // 更新按钮状态
+    const diffDistCanvas = document.getElementById('diffDistributionChart');
+    const distSubTabs = document.getElementById('dist-sub-tabs');
+
     if (trendBtn) trendBtn.classList.toggle('active', type === 'trend');
     if (distBtn) distBtn.classList.toggle('active', type === 'distribution');
-    
-    // 切换显示
+
     if (trendCanvas) trendCanvas.style.display = type === 'trend' ? 'block' : 'none';
-    if (distCanvas) distCanvas.style.display = type === 'distribution' ? 'block' : 'none';
-    
-    // 渲染图表
+    if (distCanvas) distCanvas.style.display = 'none';
+    if (diffDistCanvas) diffDistCanvas.style.display = 'none';
+    if (distSubTabs) distSubTabs.style.display = type === 'distribution' ? 'flex' : 'none';
+
     renderCharts();
 }
 
@@ -1326,7 +1417,7 @@ function renderCharts() {
     if (currentChartView === 'trend') {
         renderTrendChart();
     } else {
-        renderDistributionChart();
+        renderDistributionCharts();
     }
 }
 
@@ -1339,17 +1430,57 @@ function renderTrendChart() {
         trendChart.destroy();
     }
     
-    const sortedRecords = [...materialRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const filteredRecords = getFilteredRecordsByRange(materialRecords, currentChartRange);
+    const sortedRecords = [...filteredRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
     
     const labels = sortedRecords.map(r => r.date);
     const moduleData = sortedRecords.map(r => r.totalModules);
     const expectationData = sortedRecords.map(r => getRecordExpectation(r));
     const productionData = sortedRecords.map(r => parseFloat(r.totalProduction));
     
-    const ctx = canvas.getContext('2d');
+    // 计算7日移动平均
+    const windowSize = 7;
+    const movingAvgData = moduleData.map((_, index) => {
+        const start = Math.max(0, index - windowSize + 1);
+        const window = moduleData.slice(start, index + 1);
+        return parseFloat((window.reduce((a, b) => a + b, 0) / window.length).toFixed(2));
+    });
     
+    // 计算累计差值
+    let cumulativeDiff = 0;
+    const cumulativeDiffData = sortedRecords.map(r => {
+        const diff = r.totalModules - getRecordExpectation(r);
+        cumulativeDiff += diff;
+        return parseFloat(cumulativeDiff.toFixed(2));
+    });
+    
+    // 数据量多时，计算标签显示间隔
+    const totalPoints = labels.length;
+    const maxVisibleLabels = 15;
+    const labelSkip = totalPoints > maxVisibleLabels ? Math.ceil(totalPoints / maxVisibleLabels) : 1;
+    
+    const ctx = canvas.getContext('2d');
+
+    // 获取 zoom 插件实例
+    let zoomPluginInstance = null;
+    const candidates = [
+        window.zoomPlugin,
+        window.ZoomPlugin,
+        window.ChartZoom,
+        window['chartjs-plugin-zoom'],
+        window['chartjs-plugin-zoom'] && window['chartjs-plugin-zoom'].default,
+        window.ChartZoom && window.ChartZoom.default
+    ];
+    for (const p of candidates) {
+        if (p && typeof p === 'object' && p.id) {
+            zoomPluginInstance = p;
+            break;
+        }
+    }
+
     trendChart = new Chart(ctx, {
         type: 'line',
+        plugins: zoomPluginInstance ? [zoomPluginInstance] : [],
         data: {
             labels: labels,
             datasets: [
@@ -1359,7 +1490,23 @@ function renderTrendChart() {
                     borderColor: 'rgb(59, 130, 246)',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     tension: 0.3,
-                    fill: true
+                    fill: true,
+                    pointRadius: totalPoints > 30 ? 0 : 3,
+                    pointHoverRadius: 5,
+                    order: 2
+                },
+                {
+                    label: '7日均值',
+                    data: movingAvgData,
+                    borderColor: 'rgb(168, 85, 247)',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    borderDash: [8, 4],
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    order: 1
                 },
                 {
                     label: '期望产出',
@@ -1368,7 +1515,10 @@ function renderTrendChart() {
                     backgroundColor: 'rgba(251, 191, 36, 0.1)',
                     tension: 0.3,
                     borderDash: [5, 5],
-                    fill: false
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    order: 3
                 },
                 {
                     label: '总产出（含零件）',
@@ -1376,13 +1526,35 @@ function renderTrendChart() {
                     borderColor: 'rgb(34, 197, 94)',
                     backgroundColor: 'rgba(34, 197, 94, 0.1)',
                     tension: 0.3,
-                    fill: true
+                    fill: true,
+                    pointRadius: totalPoints > 30 ? 0 : 3,
+                    pointHoverRadius: 5,
+                    order: 4,
+                    yAxisID: 'y'
+                },
+                {
+                    label: '累计差值',
+                    data: cumulativeDiffData,
+                    borderColor: 'rgb(236, 72, 153)',
+                    backgroundColor: 'transparent',
+                    tension: 0.25,
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: totalPoints > 30 ? 0 : 2,
+                    pointHoverRadius: 4,
+                    order: 5,
+                    yAxisID: 'y1',
+                    hidden: true
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
                 title: {
                     display: true,
@@ -1390,11 +1562,62 @@ function renderTrendChart() {
                 },
                 legend: {
                     position: 'top'
+                },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return tooltipItems[0].label;
+                        }
+                    }
+                },
+                zoom: {
+                    pan: {
+                        enabled: true,
+                        mode: 'x',
+                        modifierKey: null
+                    },
+                    zoom: {
+                        wheel: {
+                            enabled: true
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'x'
+                    }
                 }
             },
             scales: {
+                x: {
+                    type: 'category',
+                    ticks: {
+                        maxRotation: 45,
+                        autoSkip: true,
+                        autoSkipPadding: 20,
+                        callback: function(value, index) {
+                            if (labelSkip <= 1) return labels[index];
+                            return index % labelSkip === 0 ? labels[index] : '';
+                        }
+                    }
+                },
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: '产出（个）'
+                    }
+                },
+                y1: {
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '累计差值'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
                 }
             }
         }
@@ -1410,11 +1633,13 @@ function renderDistributionChart() {
         distributionChart.destroy();
     }
     
+    const filteredRecords = getFilteredRecordsByRange(materialRecords, currentChartRange);
+    
     // 按阶段统计（按获取次数统计，兼容新旧数据格式）
     const stageCounts = { '5': 0, '6': 0, '7': 0 };
     const stageModuleTotals = { '5': 0, '6': 0, '7': 0 };
     
-    materialRecords.forEach(r => {
+    filteredRecords.forEach(r => {
       if (r.stage1 !== undefined) {
         // 新数据格式：统计每次获取
         const modulesPerAcquisition = r.totalModules / 3;
@@ -1495,6 +1720,121 @@ function renderDistributionChart() {
     });
 }
 
+function renderDiffDistributionChart() {
+    const canvas = document.getElementById('diffDistributionChart');
+    if (!canvas) return;
+    
+    if (diffDistributionChart) {
+        diffDistributionChart.destroy();
+    }
+    
+    const filteredRecords = getFilteredRecordsByRange(materialRecords, currentChartRange);
+    
+    // 计算所有记录的差值（模组产出 - 期望产出）
+    const diffs = filteredRecords.map(r => {
+        const expected = getRecordExpectation(r);
+        return r.totalModules - expected;
+    });
+    
+    if (diffs.length === 0) {
+        const ctx = canvas.getContext('2d');
+        diffDistributionChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: '差值分布直方图' }
+                }
+            }
+        });
+        return;
+    }
+    
+    // 计算分箱：以 0.5 为步长，从 min 到 max
+    const minDiff = Math.min(...diffs);
+    const maxDiff = Math.max(...diffs);
+    const binSize = 0.5;
+    const binStart = Math.floor(minDiff / binSize) * binSize;
+    const binEnd = Math.ceil(maxDiff / binSize) * binSize;
+    
+    const labels = [];
+    const counts = [];
+    const colors = [];
+    
+    for (let b = binStart; b < binEnd + binSize / 2; b += binSize) {
+        const lower = parseFloat(b.toFixed(2));
+        const upper = parseFloat((b + binSize).toFixed(2));
+        labels.push(`${lower}~${upper}`);
+        const count = diffs.filter(d => d >= lower && d < upper + 0.001).length;
+        counts.push(count);
+        const midPoint = (lower + upper) / 2;
+        if (midPoint >= 0) {
+            colors.push('rgba(34, 197, 94, 0.8)');
+        } else {
+            colors.push('rgba(239, 68, 68, 0.8)');
+        }
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    diffDistributionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '记录数',
+                    data: counts,
+                    backgroundColor: colors,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '差值分布直方图'
+                },
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.parsed.y} 次`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: '差值区间'
+                    },
+                    ticks: {
+                        maxRotation: 45
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '记录次数'
+                    },
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+}
+
 // ==================== 新增 UI 功能 ====================
 
 // 1. 筛选和搜索功能
@@ -1545,7 +1885,7 @@ function applyFilters(records) {
   });
 }
 
-// 更新 renderTable 函数以支持筛选
+// 更新 renderTable 函数以支持筛选和分页
 const originalRenderTable = renderTable;
 renderTable = function() {
   historyTable.innerHTML = '';
@@ -1555,12 +1895,21 @@ renderTable = function() {
   
   if (filteredRecords.length === 0) {
     noRecords.style.display = 'block';
+    renderPagination(0);
     return;
   }
   noRecords.style.display = 'none';
 
   let list = [...filteredRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
   if (currentSortBy === 'diff') list.sort((a, b) => b.diff - a.diff);
+
+  // 分页：计算当前页数据
+  const totalRecords = list.length;
+  const totalPages = Math.ceil(totalRecords / pageSize);
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const pageRecords = list.slice(startIndex, startIndex + pageSize);
 
   const thead = historyTable.parentElement.querySelector('thead tr');
   if (thead) {
@@ -1582,7 +1931,7 @@ renderTable = function() {
     `;
   }
 
-  list.forEach(item => {
+  pageRecords.forEach(item => {
     const recalculatedPartsToMod = (item.parts / 100).toFixed(2);
     const recalculatedProduction = (item.totalModules + parseFloat(recalculatedPartsToMod)).toFixed(2);
     
@@ -1664,20 +2013,39 @@ renderTable = function() {
     tdDiff.className = parseFloat(recalculatedDiff) >= 0 ? 'difference-positive' : 'difference-negative';
     tdDiff.textContent = recalculatedDiff;
     
+    // 操作列：精简为"..."图标菜单
     const tdActions = document.createElement('td');
-    const editBtn = document.createElement('button');
-    editBtn.className = 'edit-btn';
-    editBtn.textContent = '编辑';
-    editBtn.onclick = () => editRecord(item.id);
+    tdActions.className = 'action-cell';
     
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'delete-btn';
-    deleteBtn.textContent = '删除';
-    deleteBtn.onclick = () => del(item.id);
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'action-more-btn';
+    moreBtn.innerHTML = '<i class="fas fa-ellipsis-h"></i>';
+    moreBtn.setAttribute('title', '操作');
     
-    tdActions.appendChild(editBtn);
-    tdActions.appendChild(document.createTextNode(' '));
-    tdActions.appendChild(deleteBtn);
+    const menu = document.createElement('div');
+    menu.className = 'action-menu';
+    
+    const editMenuItem = document.createElement('div');
+    editMenuItem.className = 'action-menu-item';
+    editMenuItem.innerHTML = '<i class="fas fa-edit"></i> 编辑';
+    editMenuItem.onclick = (e) => { e.stopPropagation(); closeAllMenus(); editRecord(item.id); };
+    
+    const deleteMenuItem = document.createElement('div');
+    deleteMenuItem.className = 'action-menu-item action-menu-item-danger';
+    deleteMenuItem.innerHTML = '<i class="fas fa-trash-alt"></i> 删除';
+    deleteMenuItem.onclick = (e) => { e.stopPropagation(); closeAllMenus(); del(item.id); };
+    
+    menu.appendChild(editMenuItem);
+    menu.appendChild(deleteMenuItem);
+    tdActions.appendChild(moreBtn);
+    tdActions.appendChild(menu);
+    
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      const isOpen = menu.classList.contains('action-menu-open');
+      closeAllMenus();
+      if (!isOpen) menu.classList.add('action-menu-open');
+    };
     
     // 按正确顺序添加所有列
     tr.appendChild(tdSelect);
@@ -1695,7 +2063,98 @@ renderTable = function() {
     
     historyTable.appendChild(tr);
   });
+  
+  // 渲染分页控件
+  renderPagination(totalRecords);
 };
+
+// 关闭所有操作菜单
+function closeAllMenus() {
+  document.querySelectorAll('.action-menu-open').forEach(m => m.classList.remove('action-menu-open'));
+}
+
+// 点击页面其他地方关闭菜单
+document.addEventListener('click', closeAllMenus);
+
+// 渲染分页控件
+function renderPagination(totalRecords) {
+  const container = document.getElementById('pagination-container');
+  if (!container) return;
+  
+  const totalPages = Math.ceil(totalRecords / pageSize);
+  
+  if (totalRecords <= pageSize) {
+    container.style.display = 'none';
+    return;
+  }
+  
+  container.style.display = 'flex';
+  
+  let html = '';
+  
+  // 每页条数选择
+  html += `<div class="pagination-size">
+    <span>每页</span>
+    <select id="page-size-select" onchange="changePageSize(this.value)">
+      <option value="15" ${pageSize === 15 ? 'selected' : ''}>15</option>
+      <option value="20" ${pageSize === 20 ? 'selected' : ''}>20</option>
+      <option value="30" ${pageSize === 30 ? 'selected' : ''}>30</option>
+    </select>
+    <span>条</span>
+  </div>`;
+  
+  // 页码信息
+  html += `<div class="pagination-info">第 ${currentPage}/${totalPages} 页，共 ${totalRecords} 条</div>`;
+  
+  // 分页按钮
+  html += `<div class="pagination-buttons">`;
+  html += `<button class="pagination-btn" onclick="goToPage(1)" ${currentPage === 1 ? 'disabled' : ''} title="首页"><i class="fas fa-angle-double-left"></i></button>`;
+  html += `<button class="pagination-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} title="上一页"><i class="fas fa-angle-left"></i></button>`;
+  
+  // 智能页码显示
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  if (endPage - startPage < maxVisiblePages - 1) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  
+  if (startPage > 1) {
+    html += `<button class="pagination-btn" onclick="goToPage(1)">1</button>`;
+    if (startPage > 2) html += `<span class="pagination-ellipsis">...</span>`;
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    html += `<button class="pagination-btn ${i === currentPage ? 'pagination-btn-active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+  }
+  
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) html += `<span class="pagination-ellipsis">...</span>`;
+    html += `<button class="pagination-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+  }
+  
+  html += `<button class="pagination-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} title="下一页"><i class="fas fa-angle-right"></i></button>`;
+  html += `<button class="pagination-btn" onclick="goToPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} title="末页"><i class="fas fa-angle-double-right"></i></button>`;
+  html += `</div>`;
+  
+  container.innerHTML = html;
+}
+
+function goToPage(page) {
+  const filteredRecords = applyFilters(materialRecords);
+  const totalPages = Math.ceil(filteredRecords.length / pageSize);
+  currentPage = Math.max(1, Math.min(page, totalPages));
+  renderTable();
+  // 滚动表格到顶部
+  const tableContainer = document.querySelector('.table-container');
+  if (tableContainer) tableContainer.scrollTop = 0;
+}
+
+function changePageSize(size) {
+  pageSize = parseInt(size);
+  currentPage = 1;
+  renderTable();
+}
 
 // 2. 浮动操作按钮功能
 function initFAB() {
@@ -1820,250 +2279,10 @@ function initFilters() {
   }
 }
 
-// 5. 增强图表配置
+// 5. 增强图表配置（已整合到主函数中）
 function enhanceCharts() {
-  // 增强趋势图配置
-  const originalRenderTrendChart = renderTrendChart;
-  renderTrendChart = function() {
-    const canvas = document.getElementById('trendChart');
-    if (!canvas) return;
-    
-    if (trendChart) {
-      trendChart.destroy();
-    }
-    
-    const sortedRecords = [...materialRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    const labels = sortedRecords.map(r => r.date);
-    const moduleData = sortedRecords.map(r => r.totalModules);
-    const expectationData = sortedRecords.map(r => getRecordExpectation(r));
-    const productionData = sortedRecords.map(r => parseFloat(r.totalProduction));
-    
-    const ctx = canvas.getContext('2d');
-    
-    trendChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: '模组产出',
-            data: moduleData,
-            borderColor: 'rgb(99, 102, 241)',
-            backgroundColor: 'rgba(99, 102, 241, 0.15)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6
-          },
-          {
-            label: '期望产出',
-            data: expectationData,
-            borderColor: 'rgb(251, 191, 36)',
-            backgroundColor: 'rgba(251, 191, 36, 0.1)',
-            tension: 0.4,
-            borderDash: [8, 4],
-            fill: false,
-            pointRadius: 3,
-            pointHoverRadius: 5
-          },
-          {
-            label: '总产出（含零件）',
-            data: productionData,
-            borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.15)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        animation: {
-          duration: 1000,
-          easing: 'easeInOutQuart'
-        },
-        plugins: {
-          title: {
-            display: true,
-            text: '产出趋势图',
-            font: {
-              size: 18,
-              weight: 'bold'
-            }
-          },
-          legend: {
-            position: 'top',
-            labels: {
-              usePointStyle: true,
-              padding: 20
-            }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            padding: 12,
-            cornerRadius: 8,
-            titleFont: {
-              size: 14,
-              weight: 'bold'
-            },
-            bodyFont: {
-              size: 13
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: {
-              color: 'rgba(0, 0, 0, 0.05)'
-            }
-          },
-          x: {
-            grid: {
-              display: false
-            }
-          }
-        }
-      }
-    });
-  };
-  
-  // 增强分布图配置
-  const originalRenderDistributionChart = renderDistributionChart;
-  renderDistributionChart = function() {
-    const canvas = document.getElementById('distributionChart');
-    if (!canvas) return;
-    
-    if (distributionChart) {
-      distributionChart.destroy();
-    }
-    
-    const stageCounts = { '5': 0, '6': 0, '7': 0 };
-    const stageModuleTotals = { '5': 0, '6': 0, '7': 0 };
-    
-    materialRecords.forEach(r => {
-      if (stageCounts[r.stage] !== undefined) {
-        stageCounts[r.stage]++;
-        stageModuleTotals[r.stage] += r.totalModules;
-      }
-    });
-    
-    const labels = ['5阶段', '6阶段', '7阶段'];
-    const countData = [stageCounts['5'], stageCounts['6'], stageCounts['7']];
-    const moduleData = [stageModuleTotals['5'], stageModuleTotals['6'], stageModuleTotals['7']];
-    
-    const ctx = canvas.getContext('2d');
-    
-    distributionChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: '记录次数',
-            data: countData,
-            backgroundColor: 'rgba(99, 102, 241, 0.85)',
-            borderColor: 'rgba(99, 102, 241, 1)',
-            borderWidth: 2,
-            borderRadius: 6,
-            yAxisID: 'y'
-          },
-          {
-            label: '模组总数',
-            data: moduleData,
-            backgroundColor: 'rgba(236, 72, 153, 0.85)',
-            borderColor: 'rgba(236, 72, 153, 1)',
-            borderWidth: 2,
-            borderRadius: 6,
-            yAxisID: 'y1'
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        animation: {
-          duration: 1000,
-          easing: 'easeInOutQuart'
-        },
-        plugins: {
-          title: {
-            display: true,
-            text: '各阶段产出分布',
-            font: {
-              size: 18,
-              weight: 'bold'
-            }
-          },
-          legend: {
-            position: 'top',
-            labels: {
-              usePointStyle: true,
-              padding: 20
-            }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            padding: 12,
-            cornerRadius: 8,
-            titleFont: {
-              size: 14,
-              weight: 'bold'
-            },
-            bodyFont: {
-              size: 13
-            }
-          }
-        },
-        scales: {
-          y: {
-            type: 'linear',
-            display: true,
-            position: 'left',
-            title: {
-              display: true,
-              text: '记录次数',
-              font: {
-                size: 14,
-                weight: 'bold'
-              }
-            },
-            grid: {
-              color: 'rgba(0, 0, 0, 0.05)'
-            },
-            ticks: {
-              precision: 0
-            }
-          },
-          y1: {
-            type: 'linear',
-            display: true,
-            position: 'right',
-            title: {
-              display: true,
-              text: '模组总数',
-              font: {
-                size: 14,
-                weight: 'bold'
-              }
-            },
-            grid: {
-              drawOnChartArea: false
-            }
-          },
-          x: {
-            grid: {
-              display: false
-            }
-          }
-        }
-      }
-    });
-  };
+    // 图表增强功能已整合到 renderTrendChart 和 renderDistributionChart 中
+    // 此函数保留以避免调用处报错
 }
 
 // ==================== 批量录入功能 ====================
@@ -2794,39 +3013,39 @@ function exportExcelTemplate() {
       '日期': '2024-01-01',
       '第一次模组': 0,
       '第一次阶段': 7,
-      '第一次零件': 111,
+      '第一次零件': 37,
       '第二次模组': 0,
       '第二次阶段': 7,
-      '第二次零件': 111,
+      '第二次零件': 37,
       '第三次模组': 0,
       '第三次阶段': 7,
-      '第三次零件': 111,
+      '第三次零件': 37,
       '是否双倍': '否'
     },
     {
       '日期': '2024-01-02',
       '第一次模组': 1,
       '第一次阶段': 7,
-      '第一次零件': 111,
+      '第一次零件': 37,
       '第二次模组': 2,
       '第二次阶段': 6,
-      '第二次零件': 105,
+      '第二次零件': 35,
       '第三次模组': 0,
       '第三次阶段': 7,
-      '第三次零件': 111,
+      '第三次零件': 37,
       '是否双倍': '是'
     },
     {
       '日期': '2024-01-03',
       '第一次模组': 2,
       '第一次阶段': 6,
-      '第一次零件': 105,
+      '第一次零件': 35,
       '第二次模组': 1,
       '第二次阶段': 5,
-      '第二次零件': 81,
+      '第二次零件': 27,
       '第三次模组': 1,
       '第三次阶段': 7,
-      '第三次零件': 111,
+      '第三次零件': 37,
       '是否双倍': '否'
     }
   ];
@@ -2857,12 +3076,12 @@ function exportExcelTemplate() {
     { 说明: '1. 日期：格式为 YYYY-MM-DD，例如 2024-01-01' },
     { 说明: '2. 每次获取包含三个字段：模组、阶段、零件' },
     { 说明: '3. 阶段：填写 5、6 或 7，默认为 7' },
-    { 说明: '4. 零件数量根据阶段自动设置：5阶段=81, 6阶段=105, 7阶段=111' },
+    { 说明: '4. 零件数量根据阶段自动设置：5阶段=27, 6阶段=35, 7阶段=37' },
     { 说明: '5. 是否双倍：填写 "是" 或 "否"' },
     { 说明: '' },
     { 说明: '【注意事项】' },
     { 说明: '- 日期列必填，其他列可为空' },
-    { 说明: '- 阶段默认为7阶段（111零件）' },
+    { 说明: '- 阶段默认为7阶段（37零件）' },
     { 说明: '- 零件可手动修改，不强制与阶段对应' },
     { 说明: '- "是"表示双倍产出，零件数量会自动翻倍' },
     { 说明: '- 已有记录的日期会被跳过，不会重复导入' },
@@ -2929,16 +3148,16 @@ function importExcelData(arrayBuffer) {
           stage1 = String(parseInt(row['第一次阶段']) || 7);
           stage2 = String(parseInt(row['第二次阶段']) || 7);
           stage3 = String(parseInt(row['第三次阶段']) || 7);
-          parts1 = parseInt(row['第一次零件']) || STAGE_PARTS[stage1] || 111;
-          parts2 = parseInt(row['第二次零件']) || STAGE_PARTS[stage2] || 111;
-          parts3 = parseInt(row['第三次零件']) || STAGE_PARTS[stage3] || 111;
+          parts1 = parseInt(row['第一次零件']) || STAGE_PARTS[stage1] || 37;
+          parts2 = parseInt(row['第二次零件']) || STAGE_PARTS[stage2] || 37;
+          parts3 = parseInt(row['第三次零件']) || STAGE_PARTS[stage3] || 37;
         } else {
           // 旧格式：单个阶段 + 单个零件总数 + 三次获取模组数
           const stage = String(parseInt(row['阶段']) || 7);
           m1 = parseInt(row['第一次获取']) || 0;
           m2 = parseInt(row['第二次获取']) || 0;
           m3 = parseInt(row['第三次获取']) || 0;
-          const totalParts = parseInt(row['零件数量']) || STAGE_PARTS[stage] || 111;
+          const totalParts = parseInt(row['零件数量']) || (STAGE_PARTS[stage] * 3) || 111;
           stage1 = stage;
           stage2 = stage;
           stage3 = stage;
