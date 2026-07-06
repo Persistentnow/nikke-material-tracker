@@ -376,6 +376,10 @@
                     <h4><i class="fas fa-eye"></i> 实时预览</h4>
                     <div class="realtime-stats">
                         <div class="realtime-stat">
+                            <span class="realtime-label">期望产出：</span>
+                            <span class="realtime-value" id="realtime-expectation">0</span>
+                        </div>
+                        <div class="realtime-stat">
                             <span class="realtime-label">总产出量：</span>
                             <span class="realtime-value" id="realtime-production">0</span>
                         </div>
@@ -402,10 +406,21 @@
                     <button id="chart-distribution" class="chart-btn">
                         <i class="fas fa-chart-bar"></i> 产出分布
                     </button>
+                    <div class="chart-range-group" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                        <span style="font-size:13px;color:var(--text-secondary);">范围:</span>
+                        <button class="chart-range-btn active" data-range="all">全部</button>
+                        <button class="chart-range-btn" data-range="30">30天</button>
+                        <button class="chart-range-btn" data-range="7">7天</button>
+                    </div>
+                </div>
+                <div id="dist-sub-tabs" class="dist-sub-tabs" style="display:none;">
+                    <button class="dist-sub-btn active" data-dist="stage">按阶段分布</button>
+                    <button class="dist-sub-btn" data-dist="diff">差值分布</button>
                 </div>
                 <div class="charts-container">
                     <canvas id="trendChart"></canvas>
                     <canvas id="distributionChart" style="display:none;"></canvas>
+                    <canvas id="diffDistributionChart" style="display:none;"></canvas>
                 </div>
             </section>
 
@@ -444,7 +459,7 @@
                 </div>
                 
                 <div class="table-container">
-                    <div class="batch-controls" id="batch-controls" style="display: none;">
+                    <div class="batch-controls" id="batch-controls">
                         <div class="batch-info">
                             <label class="select-all-label">
                                 <input type="checkbox" id="select-all-checkbox">
@@ -486,6 +501,7 @@
                         <i class="fas fa-inbox"></i>
                         <p>暂无记录</p>
                     </div>
+                    <div id="pagination-container" class="pagination-container" style="display:none;"></div>
                 </div>
             </section>
         </main>
@@ -545,6 +561,8 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>
